@@ -6,6 +6,7 @@ const ASSETS = [
   "./css/style.css",
   "./js/storage.js",
   "./js/sim.js",
+  "./js/model.js",
   "./js/chart.js",
   "./js/views.js",
   "./js/app.js",

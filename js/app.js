@@ -96,11 +96,16 @@
         break;
       }
       case "add-history":
-        openModal(Views.historyFormModal(null));
+        openModal(Views.historyFormModal(null, data));
         break;
       case "edit-history": {
         const entry = data.history.find((h) => h.id === actionEl.dataset.id);
-        openModal(Views.historyFormModal(entry));
+        openModal(Views.historyFormModal(entry, data));
+        break;
+      }
+      case "toggle-partner-fields": {
+        const fields = document.getElementById("partner-fields");
+        if (fields) fields.classList.toggle("hidden", !actionEl.checked);
         break;
       }
       case "delete-history": {
@@ -152,12 +157,21 @@
       e.preventDefault();
       const fd = new FormData(e.target);
       const id = fd.get("recordId") || Storage.uid();
+      const readBreakdown = (prefix) => {
+        const b = {};
+        Categories.LIST.forEach((c) => {
+          const raw = parseFloat(fd.get(`${prefix}_${c.key}`));
+          b[c.key] = Math.round((isNaN(raw) ? 0 : raw) * 10000);
+        });
+        return b;
+      };
       const entry = {
         id,
         date: String(fd.get("date")),
-        amount: Math.round(parseFloat(fd.get("amountMan")) * 10000)
+        self: readBreakdown("self"),
+        partner: data.settings.partnerEnabled ? readBreakdown("partner") : Categories.emptyBreakdown()
       };
-      if (!entry.date || isNaN(entry.amount)) return;
+      if (!entry.date) return;
       const idx = data.history.findIndex((h) => h.id === id);
       if (idx >= 0) data.history[idx] = entry;
       else data.history.push(entry);
@@ -170,11 +184,32 @@
     if (targetId === "settings-form") {
       e.preventDefault();
       const fd = new FormData(e.target);
-      data.settings = {
-        monthlyContribution: Math.round(parseFloat(fd.get("monthlyContribution")) || 0),
-        annualReturnRate: parseFloat(fd.get("annualReturnRate")) || 0,
-        simulationYears: Math.round(parseFloat(fd.get("simulationYears")) || 30)
+      const readContributions = (prefix) => {
+        const c = {};
+        Categories.LIST.forEach((cat) => {
+          const monthlyRaw = parseFloat(fd.get(`${prefix}_${cat.key}_monthly`));
+          const bonusRaw = parseFloat(fd.get(`${prefix}_${cat.key}_bonus`));
+          c[cat.key] = {
+            monthly: Math.round((isNaN(monthlyRaw) ? 0 : monthlyRaw) * 10000),
+            bonus: Math.round((isNaN(bonusRaw) ? 0 : bonusRaw) * 10000)
+          };
+        });
+        return c;
       };
+      const categoryRates = {};
+      Categories.LIST.forEach((cat) => {
+        const raw = parseFloat(fd.get(`rate_${cat.key}`));
+        categoryRates[cat.key] = isNaN(raw) ? 0 : raw;
+      });
+
+      data.settings.categoryRates = categoryRates;
+      data.settings.simulationYears = Math.round(parseFloat(fd.get("simulationYears")) || 30);
+      data.settings.partnerEnabled = fd.get("partnerEnabled") === "on";
+      data.people.self.name = String(fd.get("self_name") || "").trim() || "自分";
+      data.people.self.contributions = readContributions("self");
+      data.people.partner.name = String(fd.get("partner_name") || "").trim() || "パートナー";
+      data.people.partner.contributions = readContributions("partner");
+
       persist();
       render();
       showToast("設定を保存しました");

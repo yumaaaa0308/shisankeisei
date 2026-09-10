@@ -1,44 +1,48 @@
 // 画面描画(HTML文字列を組み立てる)
 const Views = (() => {
-  function currentAssetsFromHistory(history) {
-    if (!history.length) return 0;
-    const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
-    return sorted[sorted.length - 1].amount;
+  function combinedBreakdown(entry, partnerEnabled) {
+    const b = Categories.emptyBreakdown();
+    if (!entry) return b;
+    Categories.LIST.forEach((c) => {
+      b[c.key] = (entry.self[c.key] || 0) + (partnerEnabled ? entry.partner[c.key] || 0 : 0);
+    });
+    return b;
   }
 
-  function goalStatus(goal, data) {
-    const nowYear = Sim.currentYear();
-    const yearsFromNow = Math.max(0, goal.targetYear - nowYear);
-    const currentAssets = currentAssetsFromHistory(data.history);
-    const projected = Sim.futureValue(
-      currentAssets,
-      data.settings.monthlyContribution,
-      data.settings.annualReturnRate,
-      yearsFromNow
-    );
-    const diff = projected - goal.targetAmount;
-    return { yearsFromNow, projected, diff, onTrack: diff >= 0 };
+  function breakdownBars(breakdown) {
+    const total = Categories.total(breakdown);
+    if (total <= 0) return "";
+    const rows = Categories.LIST.filter((c) => (breakdown[c.key] || 0) > 0)
+      .map((c) => {
+        const v = breakdown[c.key] || 0;
+        const pct = Math.round((v / total) * 100);
+        return `
+          <div class="breakdown-row">
+            <div class="breakdown-label">
+              <span class="legend-dot" style="background:${c.color}"></span>${c.label}
+            </div>
+            <div class="breakdown-bar-track">
+              <div class="breakdown-bar-fill" style="width:${pct}%;background:${c.color}"></div>
+            </div>
+            <div class="breakdown-value">${Fmt.man(v)}<span class="breakdown-pct">(${pct}%)</span></div>
+          </div>`;
+      })
+      .join("");
+    return `<div class="breakdown-list">${rows}</div>`;
   }
 
   // ---------- ホーム ----------
   function renderHome(data) {
-    const currentAssets = currentAssetsFromHistory(data.history);
+    const currentAssets = Model.currentAssets(data);
     const hasHistory = data.history.length > 0;
     const maxYears = Math.max(
       data.settings.simulationYears,
       ...data.goals.map((g) => Math.max(0, g.targetYear - Sim.currentYear())),
       1
     );
-    const series = Sim.projectionSeries(
-      currentAssets,
-      data.settings.monthlyContribution,
-      data.settings.annualReturnRate,
-      maxYears
-    ).map((p) => ({ x: p.year, y: p.value }));
-
+    const series = Model.projectionSeries(data, maxYears).map((p) => ({ x: p.year, y: p.value }));
     const fvAtHorizon = series.length ? series[series.length - 1].y : 0;
-
-    const onTrackCount = data.goals.filter((g) => goalStatus(g, data).onTrack).length;
+    const onTrackCount = data.goals.filter((g) => Model.goalStatus(g, data).onTrack).length;
 
     let setupNotice = "";
     if (!hasHistory) {
@@ -56,7 +60,7 @@ const Views = (() => {
       .slice()
       .sort((a, b) => a.targetYear - b.targetYear)
       .map((g) => {
-        const st = goalStatus(g, data);
+        const st = Model.goalStatus(g, data);
         const badge = st.onTrack
           ? `<span class="badge good">達成見込み +${Fmt.man(st.diff)}</span>`
           : `<span class="badge bad">不足 ${Fmt.man(st.diff)}</span>`;
@@ -71,12 +75,34 @@ const Views = (() => {
       })
       .join("");
 
+    const latest = Model.latestHistoryEntry(data.history);
+    const breakdownHtml = latest ? breakdownBars(combinedBreakdown(latest, data.settings.partnerEnabled)) : "";
+
+    let peopleSplitHtml = "";
+    if (latest && data.settings.partnerEnabled) {
+      const selfTotal = Categories.total(latest.self);
+      const partnerTotal = Categories.total(latest.partner);
+      peopleSplitHtml = `
+        <div class="stat-grid" style="margin-top:14px;">
+          <div class="stat">
+            <div class="label">${escapeHtml(data.people.self.name)}</div>
+            <div class="value">${Fmt.man(selfTotal)}</div>
+          </div>
+          <div class="stat">
+            <div class="label">${escapeHtml(data.people.partner.name)}</div>
+            <div class="value">${Fmt.man(partnerTotal)}</div>
+          </div>
+        </div>`;
+    }
+
     return `
       ${setupNotice}
       <div class="card">
         <h2>現在の資産</h2>
         <div class="big-number">${Fmt.yen(currentAssets)}</div>
         <div class="sub-number">${Fmt.man(currentAssets)}</div>
+        ${breakdownHtml}
+        ${peopleSplitHtml}
       </div>
 
       <div class="stat-grid">
@@ -111,28 +137,22 @@ const Views = (() => {
   function drawHomeChart(data) {
     const canvas = document.getElementById("home-chart");
     if (!canvas) return;
-    const currentAssets = currentAssetsFromHistory(data.history);
     const maxYears = Math.max(
       data.settings.simulationYears,
       ...data.goals.map((g) => Math.max(0, g.targetYear - Sim.currentYear())),
       1
     );
-    const series = Sim.projectionSeries(
-      currentAssets,
-      data.settings.monthlyContribution,
-      data.settings.annualReturnRate,
-      maxYears
-    ).map((p) => ({ x: p.year, y: p.value }));
+    const series = Model.projectionSeries(data, maxYears).map((p) => ({ x: p.year, y: p.value }));
 
     const nowYear = Sim.currentYear();
     const sortedHist = [...data.history].sort((a, b) => a.date.localeCompare(b.date));
     const history = sortedHist.map((h) => {
       const yearFrac = (nowYear * 12 + new Date().getMonth() - yearMonthOf(h.date)) / -12;
-      return { x: yearFrac, y: h.amount };
+      return { x: yearFrac, y: Categories.total(combinedBreakdown(h, data.settings.partnerEnabled)) };
     });
 
     const goals = data.goals.map((g) => {
-      const st = goalStatus(g, data);
+      const st = Model.goalStatus(g, data);
       return { x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack };
     });
 
@@ -156,7 +176,7 @@ const Views = (() => {
       .slice()
       .sort((a, b) => a.targetYear - b.targetYear)
       .map((g) => {
-        const st = goalStatus(g, data);
+        const st = Model.goalStatus(g, data);
         const badge = st.onTrack
           ? `<span class="badge good">+${Fmt.man(st.diff)}</span>`
           : `<span class="badge bad">${Fmt.man(st.diff)}</span>`;
@@ -231,21 +251,32 @@ const Views = (() => {
         <button class="btn btn-primary btn-block" data-action="add-history">＋ 資産を記録</button>
       `;
     }
+    const partnerEnabled = data.settings.partnerEnabled;
     const items = [...data.history]
       .sort((a, b) => b.date.localeCompare(a.date))
-      .map(
-        (h) => `
+      .map((h) => {
+        const combined = combinedBreakdown(h, partnerEnabled);
+        const total = Categories.total(combined);
+        const breakdownText = Categories.LIST.filter((c) => (combined[c.key] || 0) > 0)
+          .map((c) => `${c.label} ${Fmt.man(combined[c.key])}`)
+          .join("・");
+        const peopleText = partnerEnabled
+          ? `${escapeHtml(data.people.self.name)} ${Fmt.man(Categories.total(h.self))}・${escapeHtml(data.people.partner.name)} ${Fmt.man(Categories.total(h.partner))}`
+          : "";
+        return `
           <div class="list-item">
             <div class="li-main">
-              <div class="li-title">${Fmt.yen(h.amount)}</div>
+              <div class="li-title">${Fmt.yen(total)}</div>
               <div class="li-sub">${Fmt.dateJp(h.date)}</div>
+              ${breakdownText ? `<div class="li-sub">${breakdownText}</div>` : ""}
+              ${peopleText ? `<div class="li-sub">${peopleText}</div>` : ""}
             </div>
             <div class="li-actions">
               <button class="btn-icon" data-action="edit-history" data-id="${h.id}">✎</button>
               <button class="btn-icon" data-action="delete-history" data-id="${h.id}">🗑</button>
             </div>
-          </div>`
-      )
+          </div>`;
+      })
       .join("");
     return `
       ${chart}
@@ -264,14 +295,25 @@ const Views = (() => {
     const sorted = [...data.history].sort((a, b) => a.date.localeCompare(b.date));
     const history = sorted.map((h) => {
       const yearFrac = (yearMonthOf(h.date) - (nowYear * 12 + new Date().getMonth())) / 12;
-      return { x: yearFrac, y: h.amount };
+      return { x: yearFrac, y: Categories.total(combinedBreakdown(h, data.settings.partnerEnabled)) };
     });
     MiniChart.draw(canvas, { series: history.length ? history : [{ x: 0, y: 0 }], history: [], goals: [] });
   }
 
-  function historyFormModal(entry) {
+  function personCategoryFields(prefix, breakdown) {
+    return Categories.LIST.map(
+      (c) => `
+            <div class="field">
+              <label>${c.label}(万円)</label>
+              <input type="number" name="${prefix}_${c.key}" inputmode="decimal" value="${(breakdown[c.key] || 0) / 10000}" min="0" step="0.1">
+            </div>`
+    ).join("");
+  }
+
+  function historyFormModal(entry, data) {
     const isEdit = !!entry;
-    const h = entry || { date: Fmt.todayIso(), amount: 0 };
+    const h = entry || { date: Fmt.todayIso(), self: Categories.emptyBreakdown(), partner: Categories.emptyBreakdown() };
+    const partnerEnabled = data.settings.partnerEnabled;
     return `
       <div class="modal-backdrop" data-action="close-modal">
         <div class="modal-sheet" onclick="event.stopPropagation()">
@@ -281,11 +323,12 @@ const Views = (() => {
               <label>日付</label>
               <input type="date" name="date" value="${h.date}" required>
             </div>
-            <div class="field">
-              <label>資産額(万円)</label>
-              <input type="number" name="amountMan" inputmode="decimal" value="${h.amount / 10000}" min="0" step="0.1" required>
-              <div class="hint">預金・投資などの合計を万円単位で入力</div>
-            </div>
+            <div class="section-title" style="margin-top:0;">${escapeHtml(data.people.self.name)}</div>
+            ${personCategoryFields("self", h.self)}
+            ${partnerEnabled ? `
+            <div class="section-title">${escapeHtml(data.people.partner.name)}</div>
+            ${personCategoryFields("partner", h.partner)}` : ""}
+            <div class="hint" style="margin:-6px 0 14px;">カテゴリごとの残高を万円単位で入力(未入力は0円)</div>
             <input type="hidden" name="recordId" value="${h.id || ""}">
             <div class="modal-actions">
               <button type="button" class="btn btn-secondary" data-action="close-modal" style="flex:1">キャンセル</button>
@@ -298,28 +341,81 @@ const Views = (() => {
   }
 
   // ---------- 設定 ----------
+  function contributionRows(prefix, contributions) {
+    return Categories.LIST.map(
+      (c) => `
+        <div class="contrib-row">
+          <div class="contrib-label">
+            <span class="legend-dot" style="background:${c.color}"></span>${c.label}
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>毎月(万円)</label>
+            <input type="number" name="${prefix}_${c.key}_monthly" inputmode="decimal" value="${(contributions[c.key].monthly || 0) / 10000}" min="0" step="0.1">
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>ボーナス/年(万円)</label>
+            <input type="number" name="${prefix}_${c.key}_bonus" inputmode="decimal" value="${(contributions[c.key].bonus || 0) / 10000}" min="0" step="0.1">
+          </div>
+        </div>`
+    ).join("");
+  }
+
   function renderSettings(data) {
     const s = data.settings;
+    const rateRows = Categories.LIST.map(
+      (c) => `
+        <div class="field rate-field">
+          <label><span class="legend-dot" style="background:${c.color}"></span>${c.label}</label>
+          <div class="rate-input-wrap">
+            <input type="number" name="rate_${c.key}" inputmode="decimal" value="${s.categoryRates[c.key]}" min="-20" max="30" step="0.1" required>
+            <span>%</span>
+          </div>
+        </div>`
+    ).join("");
+
     return `
-      <div class="card">
-        <h2>積立シミュレーション設定</h2>
-        <form id="settings-form">
+      <form id="settings-form">
+        <div class="card">
+          <h2>カテゴリ別 想定年利</h2>
+          ${rateRows}
+          <div class="hint">例: 現金は0%、NISA/DCは3〜5%程度</div>
+        </div>
+
+        <div class="card">
+          <h2>${escapeHtml(data.people.self.name)}の積立設定</h2>
           <div class="field">
-            <label>毎月の積立額(円)</label>
-            <input type="number" name="monthlyContribution" inputmode="numeric" value="${s.monthlyContribution}" min="0" step="1000" required>
+            <label>名前</label>
+            <input type="text" name="self_name" value="${escapeAttr(data.people.self.name)}" maxlength="10">
           </div>
-          <div class="field">
-            <label>想定年利(%)</label>
-            <input type="number" name="annualReturnRate" inputmode="decimal" value="${s.annualReturnRate}" min="-20" max="30" step="0.1" required>
-            <div class="hint">例: 現金なら0%、投資信託の想定なら3〜5%程度</div>
+          ${contributionRows("self", data.people.self.contributions)}
+        </div>
+
+        <div class="card">
+          <h2>パートナー</h2>
+          <label class="toggle-row">
+            <input type="checkbox" name="partnerEnabled" id="partner-toggle" data-action="toggle-partner-fields" ${s.partnerEnabled ? "checked" : ""}>
+            <span>パートナーの資産も一緒に管理する</span>
+          </label>
+          <div id="partner-fields" class="${s.partnerEnabled ? "" : "hidden"}" style="margin-top:14px;">
+            <div class="field">
+              <label>名前</label>
+              <input type="text" name="partner_name" value="${escapeAttr(data.people.partner.name)}" maxlength="10">
+            </div>
+            ${contributionRows("partner", data.people.partner.contributions)}
           </div>
+        </div>
+
+        <div class="card">
+          <h2>シミュレーション期間</h2>
           <div class="field">
-            <label>シミュレーション期間(年)</label>
+            <label>期間(年)</label>
             <input type="number" name="simulationYears" inputmode="numeric" value="${s.simulationYears}" min="1" max="60" required>
           </div>
-          <button type="submit" class="btn btn-primary btn-block">保存</button>
-        </form>
-      </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block">保存</button>
+      </form>
+
       <div class="card">
         <h2>データ管理</h2>
         <p style="margin:0 0 12px;color:var(--text-dim);font-size:13px;">
@@ -343,7 +439,6 @@ const Views = (() => {
     renderHome, drawHomeChart,
     renderGoals, goalFormModal,
     renderHistory, drawHistoryChart, historyFormModal,
-    renderSettings,
-    currentAssetsFromHistory, goalStatus
+    renderSettings
   };
 })();
