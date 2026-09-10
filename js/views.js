@@ -267,7 +267,7 @@ const Views = (() => {
       .join("");
     return `
       <div class="modal-backdrop" data-action="close-modal">
-        <div class="modal-sheet" onclick="event.stopPropagation()">
+        <div class="modal-sheet" data-action="noop">
           <h2>${isEdit ? "目標を編集" : "目標を追加"}</h2>
           <form id="goal-form">
             <div class="field">
@@ -381,7 +381,7 @@ const Views = (() => {
     const partnerEnabled = data.settings.partnerEnabled;
     return `
       <div class="modal-backdrop" data-action="close-modal">
-        <div class="modal-sheet" onclick="event.stopPropagation()">
+        <div class="modal-sheet" data-action="noop">
           <h2>${isEdit ? "記録を編集" : "資産を記録"}</h2>
           <form id="history-form">
             <div class="field">
