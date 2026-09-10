@@ -144,5 +144,69 @@ const MiniChart = (() => {
     }
   }
 
-  return { draw };
+  // カテゴリ別の複数ラインを重ねて描画する(合計ラインは表示しない)
+  // lines: [{ color, points: [{x,y}] }]
+  function drawMultiLine(canvas, { lines }) {
+    const dpr = window.devicePixelRatio || 1;
+    const cssWidth = canvas.clientWidth || canvas.parentElement.clientWidth || 320;
+    const height = 220;
+    canvas.width = cssWidth * dpr;
+    canvas.height = height * dpr;
+    canvas.style.height = height + "px";
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssWidth, height);
+
+    const padL = 44, padR = 12, padT = 16, padB = 24;
+    const plotW = cssWidth - padL - padR;
+    const plotH = height - padT - padB;
+
+    const allPoints = lines.flatMap((l) => l.points);
+    if (allPoints.length === 0) return;
+    const xMin = Math.min(...allPoints.map((p) => p.x));
+    const xMax = Math.max(...allPoints.map((p) => p.x), xMin + 1);
+    const yMin = 0;
+    const yMax = Math.max(...allPoints.map((p) => p.y), 1) * 1.1;
+
+    const xToPx = (x) => padL + ((x - xMin) / (xMax - xMin || 1)) * plotW;
+    const yToPx = (y) => padT + plotH - ((y - yMin) / (yMax - yMin || 1)) * plotH;
+
+    ctx.strokeStyle = COLORS.grid;
+    ctx.fillStyle = COLORS.text;
+    ctx.font = "10px -apple-system, sans-serif";
+    ctx.lineWidth = 1;
+    const gridLines = 4;
+    for (let i = 0; i <= gridLines; i++) {
+      const y = yMin + ((yMax - yMin) * i) / gridLines;
+      const py = yToPx(y);
+      ctx.beginPath();
+      ctx.moveTo(padL, py);
+      ctx.lineTo(cssWidth - padR, py);
+      ctx.stroke();
+      ctx.fillText(manLabel(y), 2, py + 3);
+    }
+
+    const xTicks = [xMin, Math.round((xMin + xMax) / 2), xMax];
+    ctx.textAlign = "center";
+    xTicks.forEach((xv) => {
+      const label = xv === 0 ? "今" : (xv > 0 ? xv + "年後" : Math.abs(xv) + "年前");
+      ctx.fillText(label, xToPx(xv), height - 6);
+    });
+    ctx.textAlign = "left";
+
+    lines.forEach((line) => {
+      if (line.points.length < 2) return;
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      line.points.forEach((p, i) => {
+        const px = xToPx(p.x), py = yToPx(p.y);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+    });
+  }
+
+  return { draw, drawMultiLine };
 })();

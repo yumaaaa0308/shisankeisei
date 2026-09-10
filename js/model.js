@@ -64,6 +64,26 @@ const Model = (() => {
     return points;
   }
 
+  // カテゴリごとの予測推移: { nisa: [{year,value}], dc: [...], cash: [...], stock: [...] }
+  function categorySeriesByKey(data, maxYears) {
+    const principals = categoryPrincipals(data);
+    const monthly = categoryMonthly(data);
+    const bonus = categoryBonus(data);
+    const result = {};
+    Categories.LIST.forEach((c) => {
+      const rate = data.settings.categoryRates[c.key] || 0;
+      const points = [];
+      for (let y = 0; y <= maxYears; y++) {
+        points.push({
+          year: y,
+          value: Sim.futureValue(principals[c.key], monthly[c.key], bonus[c.key], rate, y)
+        });
+      }
+      result[c.key] = points;
+    });
+    return result;
+  }
+
   function goalStatus(goal, data) {
     const nowYear = Sim.currentYear();
     const yearsFromNow = Math.max(0, goal.targetYear - nowYear);
@@ -80,6 +100,7 @@ const Model = (() => {
     currentAssets,
     futureValueAt,
     projectionSeries,
+    categorySeriesByKey,
     goalStatus
   };
 })();

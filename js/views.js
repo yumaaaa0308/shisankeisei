@@ -128,10 +128,35 @@ const Views = (() => {
         </div>
       </div>
 
+      <div class="card">
+        <h2>カテゴリ別の推移予測</h2>
+        <canvas class="chart" id="category-chart"></canvas>
+        <div class="legend">
+          ${Categories.LIST.map((c) => `
+          <span class="legend-item"><span class="legend-dot" style="background:${c.color}"></span>${c.label}</span>`).join("")}
+        </div>
+      </div>
+
       ${data.goals.length ? `
       <div class="section-title">目標の達成状況</div>
       <div class="list">${goalRows}</div>` : ""}
     `;
+  }
+
+  function drawCategoryChart(data) {
+    const canvas = document.getElementById("category-chart");
+    if (!canvas) return;
+    const maxYears = Math.max(
+      data.settings.simulationYears,
+      ...data.goals.map((g) => Math.max(0, g.targetYear - Sim.currentYear())),
+      1
+    );
+    const byKey = Model.categorySeriesByKey(data, maxYears);
+    const lines = Categories.LIST.map((c) => ({
+      color: c.color,
+      points: byKey[c.key].map((p) => ({ x: p.year, y: p.value }))
+    }));
+    MiniChart.drawMultiLine(canvas, { lines });
   }
 
   function drawHomeChart(data) {
@@ -436,7 +461,7 @@ const Views = (() => {
   }
 
   return {
-    renderHome, drawHomeChart,
+    renderHome, drawHomeChart, drawCategoryChart,
     renderGoals, goalFormModal,
     renderHistory, drawHistoryChart, historyFormModal,
     renderSettings

@@ -28,6 +28,7 @@
       case "home":
         root.innerHTML = Views.renderHome(data);
         Views.drawHomeChart(data);
+        Views.drawCategoryChart(data);
         break;
       case "goals":
         root.innerHTML = Views.renderGoals(data);
@@ -218,7 +219,10 @@
 
   // 画面回転・リサイズでチャート再描画
   window.addEventListener("resize", () => {
-    if (currentView === "home") Views.drawHomeChart(data);
+    if (currentView === "home") {
+      Views.drawHomeChart(data);
+      Views.drawCategoryChart(data);
+    }
     if (currentView === "history") Views.drawHistoryChart(data);
   });
 
