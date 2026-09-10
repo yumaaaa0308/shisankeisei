@@ -167,7 +167,90 @@
         if (input) input.click();
         break;
       }
+      case "import-mf-csv": {
+        const input = document.getElementById("import-mf-file-input");
+        if (input) input.click();
+        break;
+      }
     }
+  });
+
+  // ---- マネーフォワードの資産推移CSVをパースする ----
+  // 対応列: 日付, 預金・現金（円）, 株式(現物)（円）, 投資信託（円）, 年金（円）
+  // 株式(現物)は持株会と個別株が混在しうるが、簡便のためすべて持株会として取り込む
+  function parseMfCsvLine(line) {
+    return line.split(",").map((f) => f.trim().replace(/^"|"$/g, ""));
+  }
+  function parseMfCsv(text) {
+    const lines = text.split(/\r\n|\n|\r/).filter((l) => l.trim() !== "");
+    if (!lines.length) return null;
+    const header = parseMfCsvLine(lines[0]);
+    const dateIdx = header.indexOf("日付");
+    const cashIdx = header.indexOf("預金・現金（円）");
+    const stockIdx = header.indexOf("株式(現物)（円）");
+    const fundIdx = header.indexOf("投資信託（円）");
+    const pensionIdx = header.indexOf("年金（円）");
+    if (dateIdx === -1) return null;
+
+    const num = (cols, i) => (i >= 0 && cols[i] !== undefined ? Math.round(parseFloat(cols[i]) || 0) : null);
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseMfCsvLine(lines[i]);
+      const rawDate = cols[dateIdx];
+      if (!rawDate) continue;
+      const parts = rawDate.split("/");
+      if (parts.length !== 3) continue;
+      const date = `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+      rows.push({
+        date,
+        cash: num(cols, cashIdx),
+        stock: num(cols, stockIdx),
+        nisa: num(cols, fundIdx),
+        dc: num(cols, pensionIdx)
+      });
+    }
+    return rows;
+  }
+
+  // ---- マネーフォワードCSVの読み込み ----
+  document.addEventListener("change", (e) => {
+    if (e.target.id !== "import-mf-file-input") return;
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rows = parseMfCsv(reader.result);
+      if (!rows) {
+        alert("マネーフォワードの資産推移CSVとして読み込めませんでした。列の形式をご確認ください。");
+        return;
+      }
+      if (!rows.length) {
+        alert("取り込めるデータがありませんでした。");
+        return;
+      }
+      if (!confirm(`${rows.length}件の資産推移データ(現金・持株会・NISA・DC)を取り込みます。同じ日付の記録があれば上書きします。よろしいですか？`)) return;
+
+      rows.forEach((row) => {
+        const existing = data.history.find((h) => h.date === row.date);
+        if (existing) {
+          if (row.cash !== null) existing.self.cash = row.cash;
+          if (row.stock !== null) existing.self.stock = row.stock;
+          if (row.nisa !== null) existing.self.nisa = row.nisa;
+          if (row.dc !== null) existing.self.dc = row.dc;
+        } else {
+          const self = Categories.emptyBreakdown();
+          if (row.cash !== null) self.cash = row.cash;
+          if (row.stock !== null) self.stock = row.stock;
+          if (row.nisa !== null) self.nisa = row.nisa;
+          if (row.dc !== null) self.dc = row.dc;
+          data.history.push({ id: Storage.uid(), date: row.date, self, partner: Categories.emptyBreakdown() });
+        }
+      });
+      persistAndToast(`${rows.length}件のデータを取り込みました`);
+    };
+    reader.onerror = () => alert("ファイルの読み込みに失敗しました。");
+    reader.readAsText(file, "shift-jis");
   });
 
   // ---- 金額入力欄を桁区切り表示にする(フォーカスが外れたタイミングで整形) ----

@@ -319,11 +319,17 @@ const Views = (() => {
         <h2>実績の推移</h2>
         <canvas class="chart" id="history-chart"></canvas>
       </div>`;
+    const mfImportBtn = `
+      <button class="btn btn-secondary btn-block" data-action="import-mf-csv" style="margin-top:10px;">マネーフォワードCSVを取り込む</button>
+      <div class="hint" style="text-align:center;margin-top:6px;">現金・持株会(株式)・NISA(投資信託)・DC(年金)を取り込みます。</div>
+      <input type="file" id="import-mf-file-input" accept=".csv,text/csv" class="hidden">
+    `;
     if (!data.history.length) {
       return `
         ${chart}
         <div class="empty-state">まだ記録がありません。現在の資産額を記録してみましょう。</div>
         <button class="btn btn-primary btn-block" data-action="add-history">＋ 資産を記録</button>
+        ${mfImportBtn}
       `;
     }
     const partnerEnabled = data.settings.partnerEnabled;
@@ -360,6 +366,7 @@ const Views = (() => {
       <div class="fab-row">
         <button class="btn btn-primary btn-block" data-action="add-history">＋ 資産を記録</button>
       </div>
+      ${mfImportBtn}
     `;
   }
 
