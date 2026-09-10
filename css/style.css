@@ -90,6 +90,16 @@ html, body {
   font-weight: 600;
   color: var(--text-dim);
 }
+
+.card details summary {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-dim);
+  cursor: pointer;
+  list-style: revert;
+}
+.card details[open] summary { margin-bottom: 12px; }
+.card details summary::marker { color: var(--text-dim); }
 .section-title {
   font-size: 13px;
   color: var(--text-dim);

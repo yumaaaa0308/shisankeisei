@@ -146,6 +146,18 @@ const Fmt = (() => {
     const rounded = Math.round(v * 10) / 10;
     return rounded.toLocaleString("ja-JP", { maximumFractionDigits: 1 }) + "万円";
   }
+  function manInputValue(n) {
+    // 入力欄用(桁区切りのみ、単位なし)
+    const v = (n || 0) / 10000;
+    const rounded = Math.round(v * 10) / 10;
+    return rounded.toLocaleString("ja-JP", { maximumFractionDigits: 1 });
+  }
+  function parseCommaNum(str) {
+    const cleaned = String(str == null ? "" : str).replace(/,/g, "").trim();
+    if (cleaned === "") return 0;
+    const n = parseFloat(cleaned);
+    return isNaN(n) ? 0 : n;
+  }
   function dateJp(iso) {
     if (!iso) return "";
     const d = new Date(iso + "T00:00:00");
@@ -157,5 +169,5 @@ const Fmt = (() => {
     const pad = (x) => String(x).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   }
-  return { yen, man, dateJp, todayIso };
+  return { yen, man, manInputValue, parseCommaNum, dateJp, todayIso };
 })();

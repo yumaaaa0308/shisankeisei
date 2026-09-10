@@ -242,7 +242,7 @@ const Views = (() => {
             </div>
             <div class="field">
               <label>目標金額(万円)</label>
-              <input type="number" name="targetAmountMan" inputmode="decimal" value="${g.targetAmount / 10000}" min="0" step="0.1" required>
+              <input type="text" inputmode="decimal" class="comma-input" name="targetAmountMan" value="${Fmt.manInputValue(g.targetAmount)}" required>
             </div>
             <div class="field">
               <label>目標年(西暦)</label>
@@ -331,7 +331,7 @@ const Views = (() => {
       (c) => `
             <div class="field">
               <label>${c.label}(万円)</label>
-              <input type="number" name="${prefix}_${c.key}" inputmode="decimal" value="${(breakdown[c.key] || 0) / 10000}" min="0" step="0.1">
+              <input type="text" inputmode="decimal" class="comma-input" name="${prefix}_${c.key}" value="${Fmt.manInputValue(breakdown[c.key] || 0)}">
             </div>`
     ).join("");
   }
@@ -376,11 +376,11 @@ const Views = (() => {
           </div>
           <div class="field" style="margin-bottom:0;">
             <label>毎月(万円)</label>
-            <input type="number" name="${prefix}_${c.key}_monthly" inputmode="decimal" value="${(contributions[c.key].monthly || 0) / 10000}" min="0" step="0.1">
+            <input type="text" inputmode="decimal" class="comma-input" name="${prefix}_${c.key}_monthly" value="${Fmt.manInputValue(contributions[c.key].monthly || 0)}">
           </div>
           <div class="field" style="margin-bottom:0;">
             <label>ボーナス/年(万円)</label>
-            <input type="number" name="${prefix}_${c.key}_bonus" inputmode="decimal" value="${(contributions[c.key].bonus || 0) / 10000}" min="0" step="0.1">
+            <input type="text" inputmode="decimal" class="comma-input" name="${prefix}_${c.key}_bonus" value="${Fmt.manInputValue(contributions[c.key].bonus || 0)}">
           </div>
         </div>`
     ).join("");
@@ -402,18 +402,26 @@ const Views = (() => {
     return `
       <form id="settings-form">
         <div class="card">
-          <h2>カテゴリ別 想定年利</h2>
-          ${rateRows}
-          <div class="hint">例: 現金は0%、NISA/DCは3〜5%程度</div>
+          <details>
+            <summary>カテゴリ別 想定年利</summary>
+            <div class="details-body">
+              ${rateRows}
+              <div class="hint">例: 現金は0%、NISA/DCは3〜5%程度</div>
+            </div>
+          </details>
         </div>
 
         <div class="card">
-          <h2>${escapeHtml(data.people.self.name)}の積立設定</h2>
-          <div class="field">
-            <label>名前</label>
-            <input type="text" name="self_name" value="${escapeAttr(data.people.self.name)}" maxlength="10">
-          </div>
-          ${contributionRows("self", data.people.self.contributions)}
+          <details>
+            <summary>${escapeHtml(data.people.self.name)}の積立設定</summary>
+            <div class="details-body">
+              <div class="field">
+                <label>名前</label>
+                <input type="text" name="self_name" value="${escapeAttr(data.people.self.name)}" maxlength="10">
+              </div>
+              ${contributionRows("self", data.people.self.contributions)}
+            </div>
+          </details>
         </div>
 
         <div class="card">

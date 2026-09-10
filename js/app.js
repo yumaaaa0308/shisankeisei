@@ -149,6 +149,13 @@
     }
   });
 
+  // ---- 金額入力欄を桁区切り表示にする(フォーカスが外れたタイミングで整形) ----
+  document.addEventListener("focusout", (e) => {
+    if (!e.target.classList || !e.target.classList.contains("comma-input")) return;
+    const num = Fmt.parseCommaNum(e.target.value);
+    e.target.value = e.target.value.trim() === "" ? "" : Fmt.manInputValue(num * 10000);
+  });
+
   // ---- バックアップファイルの読み込み ----
   document.addEventListener("change", (e) => {
     if (e.target.id !== "import-file-input") return;
@@ -187,7 +194,7 @@
       const goal = {
         id,
         name: String(fd.get("name") || "").trim(),
-        targetAmount: Math.round(parseFloat(fd.get("targetAmountMan")) * 10000),
+        targetAmount: Math.round(Fmt.parseCommaNum(fd.get("targetAmountMan")) * 10000),
         targetYear: parseInt(fd.get("targetYear"), 10),
         note: String(fd.get("note") || "").trim()
       };
@@ -206,8 +213,7 @@
       const readBreakdown = (prefix) => {
         const b = {};
         Categories.LIST.forEach((c) => {
-          const raw = parseFloat(fd.get(`${prefix}_${c.key}`));
-          b[c.key] = Math.round((isNaN(raw) ? 0 : raw) * 10000);
+          b[c.key] = Math.round(Fmt.parseCommaNum(fd.get(`${prefix}_${c.key}`)) * 10000);
         });
         return b;
       };
@@ -231,11 +237,9 @@
       const readContributions = (prefix) => {
         const c = {};
         Categories.LIST.forEach((cat) => {
-          const monthlyRaw = parseFloat(fd.get(`${prefix}_${cat.key}_monthly`));
-          const bonusRaw = parseFloat(fd.get(`${prefix}_${cat.key}_bonus`));
           c[cat.key] = {
-            monthly: Math.round((isNaN(monthlyRaw) ? 0 : monthlyRaw) * 10000),
-            bonus: Math.round((isNaN(bonusRaw) ? 0 : bonusRaw) * 10000)
+            monthly: Math.round(Fmt.parseCommaNum(fd.get(`${prefix}_${cat.key}_monthly`)) * 10000),
+            bonus: Math.round(Fmt.parseCommaNum(fd.get(`${prefix}_${cat.key}_bonus`)) * 10000)
           };
         });
         return c;
