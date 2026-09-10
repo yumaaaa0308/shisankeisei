@@ -40,10 +40,10 @@ const MiniChart = (() => {
     return { ctx, cssWidth, height };
   }
 
-  // 目盛りが1,2,5×10^nの「切りのいい数字」になるようステップ幅と上限を決める
-  function niceStep(rawMax, targetTicks) {
-    if (!(rawMax > 0)) return { step: 1, niceMax: targetTicks };
-    const roughStep = rawMax / targetTicks;
+  // 値の範囲(range)から、1,2,5×10^nの「切りのいい数字」になる目盛り幅を決める
+  function niceStep(range, targetTicks) {
+    if (!(range > 0)) return 1;
+    const roughStep = range / targetTicks;
     const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
     const normalized = roughStep / magnitude;
     let niceNormalized;
@@ -51,20 +51,24 @@ const MiniChart = (() => {
     else if (normalized <= 2) niceNormalized = 2;
     else if (normalized <= 5) niceNormalized = 5;
     else niceNormalized = 10;
-    const step = niceNormalized * magnitude;
-    const niceMax = Math.ceil(rawMax / step) * step;
-    return { step, niceMax };
+    return niceNormalized * magnitude;
   }
 
+  // マイナス残高(目標支出で使い切った場合など)も表示できるよう、0を必ず範囲に含めつつ
+  // 実際のデータの最小値・最大値に応じてyMin/yMaxを決める
   function computeScale(cssWidth, height, allX, allY) {
     const padL = 44, padR = 12, padT = 16, padB = 24;
     const plotW = cssWidth - padL - padR;
     const plotH = height - padT - padB;
     const xMin = Math.min(...allX);
     const xMax = Math.max(...allX, xMin + 1);
-    const yMin = 0;
-    const { step, niceMax } = niceStep(Math.max(...allY, 1), 5);
-    const yMax = niceMax;
+
+    const dataMin = Math.min(0, ...allY);
+    const dataMax = Math.max(0, ...allY, 1);
+    const step = niceStep(dataMax - dataMin, 5);
+    const yMin = Math.floor(dataMin / step) * step;
+    const yMax = Math.ceil(dataMax / step) * step;
+
     const xToPx = (x) => padL + ((x - xMin) / (xMax - xMin || 1)) * plotW;
     const yToPx = (y) => padT + plotH - ((y - yMin) / (yMax - yMin || 1)) * plotH;
     return { padL, padR, padT, padB, plotW, plotH, xMin, xMax, yMin, yMax, yStep: step, xToPx, yToPx };
@@ -102,6 +106,18 @@ const MiniChart = (() => {
       ctx.beginPath();
       ctx.moveTo(px, padT);
       ctx.lineTo(px, padT + plotH);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    if (yMin < 0) {
+      const py = yToPx(0);
+      ctx.strokeStyle = COLORS.text;
+      ctx.globalAlpha = 0.5;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padL, py);
+      ctx.lineTo(cssWidth - padR, py);
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
