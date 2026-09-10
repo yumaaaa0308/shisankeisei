@@ -101,15 +101,24 @@ const Model = (() => {
     return Sim.futureValue(principals[categoryKey], monthly[categoryKey], bonus[categoryKey], rate, yearsFromNow);
   }
 
+  // "YYYY-MM"の目標日が今から何ヶ月後かを返す(過去/当月なら0)
+  function monthsUntil(targetDate) {
+    const [y, m] = String(targetDate).split("-").map(Number);
+    const now = new Date();
+    const nowMonths = now.getFullYear() * 12 + now.getMonth();
+    const targetMonths = y * 12 + (m - 1);
+    return Math.max(0, targetMonths - nowMonths);
+  }
+
   function goalStatus(goal, data) {
-    const nowYear = Sim.currentYear();
-    const yearsFromNow = Math.max(0, goal.targetYear - nowYear);
+    const totalMonths = monthsUntil(goal.targetDate);
+    const yearsFromNow = totalMonths / 12;
     const isCategoryFunded = goal.fundingSource && goal.fundingSource !== "total";
     const projected = isCategoryFunded
       ? categoryFutureValueAt(data, goal.fundingSource, yearsFromNow)
       : futureValueAt(data, yearsFromNow);
     const diff = projected - goal.targetAmount;
-    return { yearsFromNow, projected, diff, onTrack: diff >= 0 };
+    return { yearsFromNow, monthsFromNow: totalMonths, projected, diff, onTrack: diff >= 0 };
   }
 
   return {
@@ -122,6 +131,7 @@ const Model = (() => {
     categoryFutureValueAt,
     projectionSeries,
     categorySeriesByKey,
+    monthsUntil,
     goalStatus
   };
 })();

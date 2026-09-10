@@ -43,13 +43,26 @@ const Storage = (() => {
       },
       // history entry: { id, date: 'YYYY-MM-DD', self: {nisa,dc,cash,stock}(円), partner: {同上} }
       history: [],
-      // goal: { id, name, targetAmount(円), targetYear(西暦), note, fundingSource: "total"|"nisa"|"dc"|"cash"|"stock" }
+      // goal: { id, name, targetAmount(円), targetDate('YYYY-MM'), note, fundingSource: "total"|"nisa"|"dc"|"cash"|"stock" }
       goals: []
     };
   }
 
   function normalizeGoal(goal) {
-    return { ...goal, fundingSource: goal.fundingSource || "total" };
+    let targetDate = goal.targetDate;
+    if (!targetDate && goal.targetYear) targetDate = `${goal.targetYear}-12`;
+    if (!targetDate) {
+      const d = new Date();
+      targetDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    }
+    return {
+      id: goal.id,
+      name: goal.name,
+      targetAmount: goal.targetAmount,
+      targetDate,
+      note: goal.note || "",
+      fundingSource: goal.fundingSource || "total"
+    };
   }
 
   function normalizeHistoryEntry(entry) {
@@ -177,5 +190,27 @@ const Fmt = (() => {
     const pad = (x) => String(x).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   }
-  return { yen, man, manInputValue, parseCommaNum, dateJp, todayIso };
+  function currentYearMonth() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+  function yearMonthJp(ym) {
+    if (!ym) return "";
+    const [y, m] = String(ym).split("-").map(Number);
+    if (!y || !m) return ym;
+    return `${y}年${m}月`;
+  }
+  function countdownLabel(totalMonths) {
+    const m = Math.round(totalMonths);
+    if (m <= 0) return "今";
+    const years = Math.floor(m / 12);
+    const months = m % 12;
+    if (years === 0) return `${months}ヶ月後`;
+    if (months === 0) return `${years}年後`;
+    return `${years}年${months}ヶ月後`;
+  }
+  return {
+    yen, man, manInputValue, parseCommaNum,
+    dateJp, todayIso, currentYearMonth, yearMonthJp, countdownLabel
+  };
 })();

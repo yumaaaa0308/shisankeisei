@@ -207,11 +207,11 @@
         id,
         name: String(fd.get("name") || "").trim(),
         targetAmount: Math.round(Fmt.parseCommaNum(fd.get("targetAmountMan")) * 10000),
-        targetYear: parseInt(fd.get("targetYear"), 10),
+        targetDate: String(fd.get("targetDate") || ""),
         fundingSource: String(fd.get("fundingSource") || "total"),
         note: String(fd.get("note") || "").trim()
       };
-      if (!goal.name || isNaN(goal.targetAmount) || isNaN(goal.targetYear)) return;
+      if (!goal.name || isNaN(goal.targetAmount) || !goal.targetDate) return;
       const idx = data.goals.findIndex((g) => g.id === id);
       if (idx >= 0) data.goals[idx] = goal;
       else data.goals.push(goal);

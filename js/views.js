@@ -38,7 +38,7 @@ const Views = (() => {
     const hasHistory = data.history.length > 0;
     const maxYears = Math.max(
       data.settings.simulationYears,
-      ...data.goals.map((g) => Math.max(0, g.targetYear - Sim.currentYear())),
+      ...data.goals.map((g) => Math.ceil(Model.monthsUntil(g.targetDate) / 12)),
       1
     );
     const series = Model.projectionSeries(data, maxYears).map((p) => ({ x: p.year, y: p.value }));
@@ -61,7 +61,7 @@ const Views = (() => {
 
     const goalRows = data.goals
       .slice()
-      .sort((a, b) => a.targetYear - b.targetYear)
+      .sort((a, b) => a.targetDate.localeCompare(b.targetDate))
       .map((g) => {
         const st = Model.goalStatus(g, data);
         const badge = st.onTrack
@@ -71,7 +71,7 @@ const Views = (() => {
           <div class="list-item">
             <div class="li-main">
               <div class="li-title">${escapeHtml(g.name)}</div>
-              <div class="li-sub">${g.targetYear}年 (${st.yearsFromNow}年後)・目標 ${Fmt.man(g.targetAmount)}・${fundingSourceLabel(g.fundingSource)}</div>
+              <div class="li-sub">${Fmt.yearMonthJp(g.targetDate)} (${Fmt.countdownLabel(st.monthsFromNow)})・目標 ${Fmt.man(g.targetAmount)}・${fundingSourceLabel(g.fundingSource)}</div>
             </div>
             ${badge}
           </div>`;
@@ -163,7 +163,7 @@ const Views = (() => {
     const chartMode = data.settings.partnerEnabled ? (categoryChartMode || "combined") : "combined";
     const maxYears = Math.max(
       data.settings.simulationYears,
-      ...data.goals.map((g) => Math.max(0, g.targetYear - Sim.currentYear())),
+      ...data.goals.map((g) => Math.ceil(Model.monthsUntil(g.targetDate) / 12)),
       1
     );
     const byKey = Model.categorySeriesByKey(data, maxYears, chartMode);
@@ -188,7 +188,7 @@ const Views = (() => {
     if (!canvas) return;
     const maxYears = Math.max(
       data.settings.simulationYears,
-      ...data.goals.map((g) => Math.max(0, g.targetYear - Sim.currentYear())),
+      ...data.goals.map((g) => Math.ceil(Model.monthsUntil(g.targetDate) / 12)),
       1
     );
     const series = Model.projectionSeries(data, maxYears).map((p) => ({ x: p.year, y: p.value }));
@@ -231,7 +231,7 @@ const Views = (() => {
     }
     const items = data.goals
       .slice()
-      .sort((a, b) => a.targetYear - b.targetYear)
+      .sort((a, b) => a.targetDate.localeCompare(b.targetDate))
       .map((g) => {
         const st = Model.goalStatus(g, data);
         const badge = st.onTrack
@@ -241,7 +241,7 @@ const Views = (() => {
           <div class="list-item">
             <div class="li-main">
               <div class="li-title">${escapeHtml(g.name)}</div>
-              <div class="li-sub">${g.targetYear}年・目標 ${Fmt.man(g.targetAmount)}・資金源: ${fundingSourceLabel(g.fundingSource)}${g.note ? " ・ " + escapeHtml(g.note) : ""}</div>
+              <div class="li-sub">${Fmt.yearMonthJp(g.targetDate)}・目標 ${Fmt.man(g.targetAmount)}・資金源: ${fundingSourceLabel(g.fundingSource)}${g.note ? " ・ " + escapeHtml(g.note) : ""}</div>
               <div class="li-sub">予測: ${Fmt.man(st.projected)} ${badge}</div>
             </div>
             <div class="li-actions">
@@ -259,9 +259,15 @@ const Views = (() => {
     `;
   }
 
+  function defaultTargetDate() {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 5);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+
   function goalFormModal(goal) {
     const isEdit = !!goal;
-    const g = goal || { name: "", targetAmount: 0, targetYear: Sim.currentYear() + 5, note: "", fundingSource: "total" };
+    const g = goal || { name: "", targetAmount: 0, targetDate: defaultTargetDate(), note: "", fundingSource: "total" };
     const fundingOptions = [{ key: "total", label: "全体(すべての資産合計)" }, ...Categories.LIST]
       .map((c) => `<option value="${c.key}" ${g.fundingSource === c.key ? "selected" : ""}>${c.label}</option>`)
       .join("");
@@ -279,8 +285,8 @@ const Views = (() => {
               <input type="text" inputmode="decimal" class="comma-input" name="targetAmountMan" value="${Fmt.manInputValue(g.targetAmount)}" required>
             </div>
             <div class="field">
-              <label>目標年(西暦)</label>
-              <input type="number" name="targetYear" inputmode="numeric" value="${g.targetYear}" min="${Sim.currentYear()}" required>
+              <label>目標の年月</label>
+              <input type="month" name="targetDate" value="${g.targetDate}" min="${Fmt.currentYearMonth()}" required>
             </div>
             <div class="field">
               <label>資金源</label>
