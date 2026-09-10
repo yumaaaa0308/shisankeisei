@@ -443,6 +443,20 @@ const Views = (() => {
       </form>
 
       <div class="card">
+        <h2>データのバックアップ</h2>
+        <p style="margin:0 0 12px;color:var(--text-dim);font-size:13px;">
+          データはこの端末内のみに保存されています。機種変更やアプリの再インストールに備えて、
+          ファイルに書き出しておくことをおすすめします。書き出したファイルは「ファイル」アプリや
+          iCloud Driveに保存できます。
+        </p>
+        <div class="fab-row">
+          <button class="btn btn-secondary" data-action="export-data" style="flex:1">エクスポート</button>
+          <button class="btn btn-secondary" data-action="import-data" style="flex:1">インポート</button>
+        </div>
+        <input type="file" id="import-file-input" accept="application/json,.json" class="hidden">
+      </div>
+
+      <div class="card">
         <h2>データ管理</h2>
         <p style="margin:0 0 12px;color:var(--text-dim);font-size:13px;">
           データはこの端末内のみに保存されています。他の端末とは共有されません。

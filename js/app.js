@@ -5,7 +5,13 @@
   const tabBar = document.getElementById("tab-bar");
 
   function persist() {
-    Storage.save(data);
+    return Storage.save(data);
+  }
+
+  function persistAndToast(successMsg) {
+    const ok = persist();
+    render();
+    showToast(ok ? successMsg : "保存に失敗しました(端末の空き容量やプライベートブラウズ設定をご確認ください)");
   }
 
   function showToast(msg) {
@@ -90,9 +96,7 @@
       case "delete-goal": {
         if (confirm("この目標を削除しますか？")) {
           data.goals = data.goals.filter((g) => g.id !== actionEl.dataset.id);
-          persist();
-          render();
-          showToast("目標を削除しました");
+          persistAndToast("目標を削除しました");
         }
         break;
       }
@@ -112,22 +116,65 @@
       case "delete-history": {
         if (confirm("この記録を削除しますか？")) {
           data.history = data.history.filter((h) => h.id !== actionEl.dataset.id);
-          persist();
-          render();
-          showToast("記録を削除しました");
+          persistAndToast("記録を削除しました");
         }
         break;
       }
       case "reset-data": {
         if (confirm("すべてのデータを削除します。よろしいですか？この操作は取り消せません。")) {
           data = Storage.defaultData();
-          persist();
-          render();
-          showToast("データを削除しました");
+          persistAndToast("データを削除しました");
         }
         break;
       }
+      case "export-data": {
+        const filename = `asset-plan-backup-${Fmt.todayIso()}.json`;
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast("バックアップを書き出しました");
+        break;
+      }
+      case "import-data": {
+        const input = document.getElementById("import-file-input");
+        if (input) input.click();
+        break;
+      }
     }
+  });
+
+  // ---- バックアップファイルの読み込み ----
+  document.addEventListener("change", (e) => {
+    if (e.target.id !== "import-file-input") return;
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let parsed;
+      try {
+        parsed = JSON.parse(reader.result);
+      } catch (err) {
+        alert("ファイルの形式が正しくありません(JSONとして読み込めませんでした)。");
+        return;
+      }
+      if (!parsed || typeof parsed !== "object" || !parsed.settings || !parsed.people) {
+        alert("このアプリのバックアップファイルではないようです。");
+        return;
+      }
+      if (!confirm("現在のデータを、選択したファイルの内容で置き換えます。よろしいですか？")) return;
+      localStorage.setItem("assetPlanApp:v1", JSON.stringify(parsed));
+      data = Storage.load();
+      persistAndToast("データを読み込みました");
+    };
+    reader.onerror = () => alert("ファイルの読み込みに失敗しました。");
+    reader.readAsText(file);
   });
 
   // ---- フォーム送信委譲 ----
@@ -148,10 +195,8 @@
       const idx = data.goals.findIndex((g) => g.id === id);
       if (idx >= 0) data.goals[idx] = goal;
       else data.goals.push(goal);
-      persist();
       closeModal();
-      render();
-      showToast("目標を保存しました");
+      persistAndToast("目標を保存しました");
     }
 
     if (targetId === "history-form") {
@@ -176,10 +221,8 @@
       const idx = data.history.findIndex((h) => h.id === id);
       if (idx >= 0) data.history[idx] = entry;
       else data.history.push(entry);
-      persist();
       closeModal();
-      render();
-      showToast("資産を記録しました");
+      persistAndToast("資産を記録しました");
     }
 
     if (targetId === "settings-form") {
@@ -211,9 +254,7 @@
       data.people.partner.name = String(fd.get("partner_name") || "").trim() || "パートナー";
       data.people.partner.contributions = readContributions("partner");
 
-      persist();
-      render();
-      showToast("設定を保存しました");
+      persistAndToast("設定を保存しました");
     }
   });
 

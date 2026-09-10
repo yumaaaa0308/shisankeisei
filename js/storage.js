@@ -119,7 +119,13 @@ const Storage = (() => {
   }
 
   function save(data) {
-    localStorage.setItem(KEY, JSON.stringify(data));
+    try {
+      localStorage.setItem(KEY, JSON.stringify(data));
+      return true;
+    } catch (e) {
+      console.error("Failed to save data.", e);
+      return false;
+    }
   }
 
   function uid() {

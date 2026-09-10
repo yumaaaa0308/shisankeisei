@@ -87,10 +87,10 @@ const MiniChart = (() => {
       ctx.fillText(manLabel(y), 2, py + 3);
     }
 
-    const xTicks = [xMin, Math.round((xMin + xMax) / 2), xMax];
+    const xTicks = [xMin, (xMin + xMax) / 2, xMax];
     ctx.textAlign = "center";
     xTicks.forEach((xv) => {
-      ctx.fillText(yearLabel(xv), xToPx(xv), height - 6);
+      ctx.fillText(yearLabel(Math.round(xv)), xToPx(xv), height - 6);
     });
     ctx.textAlign = "left";
 
