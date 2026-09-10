@@ -1,6 +1,7 @@
 (function () {
   let data = Storage.load();
   let currentView = "home";
+  let categoryChartMode = "combined"; // "combined" | "self" | "partner"
   const root = document.getElementById("view-root");
   const tabBar = document.getElementById("tab-bar");
 
@@ -32,9 +33,9 @@
     setActiveTab(currentView);
     switch (currentView) {
       case "home":
-        root.innerHTML = Views.renderHome(data);
+        root.innerHTML = Views.renderHome(data, categoryChartMode);
         Views.drawHomeChart(data);
-        Views.drawCategoryChart(data);
+        Views.drawCategoryChart(data, categoryChartMode);
         break;
       case "goals":
         root.innerHTML = Views.renderGoals(data);
@@ -106,6 +107,17 @@
       case "edit-history": {
         const entry = data.history.find((h) => h.id === actionEl.dataset.id);
         openModal(Views.historyFormModal(entry, data));
+        break;
+      }
+      case "set-category-mode": {
+        categoryChartMode = actionEl.dataset.mode;
+        const container = actionEl.closest(".segmented");
+        if (container) {
+          container.querySelectorAll(".seg-btn").forEach((btn) => {
+            btn.classList.toggle("active", btn.dataset.mode === categoryChartMode);
+          });
+        }
+        Views.drawCategoryChart(data, categoryChartMode);
         break;
       }
       case "toggle-partner-fields": {
@@ -267,7 +279,7 @@
   window.addEventListener("resize", () => {
     if (currentView === "home") {
       Views.drawHomeChart(data);
-      Views.drawCategoryChart(data);
+      Views.drawCategoryChart(data, categoryChartMode);
     }
     if (currentView === "history") Views.drawHistoryChart(data);
   });

@@ -6,36 +6,43 @@ const Model = (() => {
     return sorted[sorted.length - 1];
   }
 
-  // カテゴリごとの現在の元本(自分+パートナー合算)
-  function categoryPrincipals(data) {
+  // who: "combined"(既定) | "self" | "partner"
+  function pick(who, selfV, partnerV) {
+    if (who === "self") return selfV;
+    if (who === "partner") return partnerV;
+    return selfV + partnerV;
+  }
+
+  // カテゴリごとの現在の元本
+  function categoryPrincipals(data, who = "combined") {
     const latest = latestHistoryEntry(data.history);
     const result = {};
     Categories.LIST.forEach((c) => {
       const selfAmount = latest ? latest.self[c.key] || 0 : 0;
       const partnerAmount = latest && data.settings.partnerEnabled ? latest.partner[c.key] || 0 : 0;
-      result[c.key] = selfAmount + partnerAmount;
+      result[c.key] = pick(who, selfAmount, partnerAmount);
     });
     return result;
   }
 
-  // カテゴリごとの毎月積立額(自分+パートナー合算)
-  function categoryMonthly(data) {
+  // カテゴリごとの毎月積立額
+  function categoryMonthly(data, who = "combined") {
     const result = {};
     Categories.LIST.forEach((c) => {
       const selfV = data.people.self.contributions[c.key].monthly || 0;
       const partnerV = data.settings.partnerEnabled ? data.people.partner.contributions[c.key].monthly || 0 : 0;
-      result[c.key] = selfV + partnerV;
+      result[c.key] = pick(who, selfV, partnerV);
     });
     return result;
   }
 
-  // カテゴリごとの年1回ボーナス積立額(自分+パートナー合算)
-  function categoryBonus(data) {
+  // カテゴリごとの年1回ボーナス積立額
+  function categoryBonus(data, who = "combined") {
     const result = {};
     Categories.LIST.forEach((c) => {
       const selfV = data.people.self.contributions[c.key].bonus || 0;
       const partnerV = data.settings.partnerEnabled ? data.people.partner.contributions[c.key].bonus || 0 : 0;
-      result[c.key] = selfV + partnerV;
+      result[c.key] = pick(who, selfV, partnerV);
     });
     return result;
   }
@@ -65,10 +72,11 @@ const Model = (() => {
   }
 
   // カテゴリごとの予測推移: { nisa: [{year,value}], dc: [...], cash: [...], stock: [...] }
-  function categorySeriesByKey(data, maxYears) {
-    const principals = categoryPrincipals(data);
-    const monthly = categoryMonthly(data);
-    const bonus = categoryBonus(data);
+  // who: "combined"(既定) | "self" | "partner"
+  function categorySeriesByKey(data, maxYears, who = "combined") {
+    const principals = categoryPrincipals(data, who);
+    const monthly = categoryMonthly(data, who);
+    const bonus = categoryBonus(data, who);
     const result = {};
     Categories.LIST.forEach((c) => {
       const rate = data.settings.categoryRates[c.key] || 0;

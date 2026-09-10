@@ -32,7 +32,8 @@ const Views = (() => {
   }
 
   // ---------- ホーム ----------
-  function renderHome(data) {
+  function renderHome(data, categoryChartMode) {
+    const chartMode = data.settings.partnerEnabled ? (categoryChartMode || "combined") : "combined";
     const currentAssets = Model.currentAssets(data);
     const hasHistory = data.history.length > 0;
     const maxYears = Math.max(
@@ -131,12 +132,20 @@ const Views = (() => {
       </div>
 
       <div class="card">
-        <h2>カテゴリ別の推移予測</h2>
+        <div class="chart-header">
+          <h2>カテゴリ別の推移予測</h2>
+          ${data.settings.partnerEnabled ? `
+          <div class="segmented">
+            <button type="button" class="seg-btn ${chartMode === "combined" ? "active" : ""}" data-action="set-category-mode" data-mode="combined">合計</button>
+            <button type="button" class="seg-btn ${chartMode === "self" ? "active" : ""}" data-action="set-category-mode" data-mode="self">${escapeHtml(data.people.self.name)}</button>
+            <button type="button" class="seg-btn ${chartMode === "partner" ? "active" : ""}" data-action="set-category-mode" data-mode="partner">${escapeHtml(data.people.partner.name)}</button>
+          </div>` : ""}
+        </div>
         <canvas class="chart" id="category-chart"></canvas>
         <div class="legend">
           ${Categories.LIST.map((c) => `
           <span class="legend-item"><span class="legend-dot" style="background:${c.color}"></span>${c.label}</span>`).join("")}
-          ${hasCategoryGoals ? `
+          ${hasCategoryGoals && chartMode === "combined" ? `
           <span class="legend-item"><span class="legend-dot" style="background:#22d3ee"></span>目標(達成見込み)</span>
           <span class="legend-item"><span class="legend-dot" style="background:#f87171"></span>目標(不足)</span>` : ""}
         </div>
@@ -148,26 +157,29 @@ const Views = (() => {
     `;
   }
 
-  function drawCategoryChart(data) {
+  function drawCategoryChart(data, categoryChartMode) {
     const canvas = document.getElementById("category-chart");
     if (!canvas) return;
+    const chartMode = data.settings.partnerEnabled ? (categoryChartMode || "combined") : "combined";
     const maxYears = Math.max(
       data.settings.simulationYears,
       ...data.goals.map((g) => Math.max(0, g.targetYear - Sim.currentYear())),
       1
     );
-    const byKey = Model.categorySeriesByKey(data, maxYears);
+    const byKey = Model.categorySeriesByKey(data, maxYears, chartMode);
     const lines = Categories.LIST.map((c) => ({
       color: c.color,
       label: c.label,
       points: byKey[c.key].map((p) => ({ x: p.year, y: p.value }))
     }));
-    const goals = data.goals
-      .filter((g) => g.fundingSource && g.fundingSource !== "total")
-      .map((g) => {
-        const st = Model.goalStatus(g, data);
-        return { x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack };
-      });
+    const goals = chartMode === "combined"
+      ? data.goals
+          .filter((g) => g.fundingSource && g.fundingSource !== "total")
+          .map((g) => {
+            const st = Model.goalStatus(g, data);
+            return { x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack };
+          })
+      : [];
     MiniChart.drawMultiLine(canvas, { lines, goals });
   }
 
