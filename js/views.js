@@ -154,6 +154,7 @@ const Views = (() => {
     const byKey = Model.categorySeriesByKey(data, maxYears);
     const lines = Categories.LIST.map((c) => ({
       color: c.color,
+      label: c.label,
       points: byKey[c.key].map((p) => ({ x: p.year, y: p.value }))
     }));
     MiniChart.drawMultiLine(canvas, { lines });
@@ -322,7 +323,7 @@ const Views = (() => {
       const yearFrac = (yearMonthOf(h.date) - (nowYear * 12 + new Date().getMonth())) / 12;
       return { x: yearFrac, y: Categories.total(combinedBreakdown(h, data.settings.partnerEnabled)) };
     });
-    MiniChart.draw(canvas, { series: history.length ? history : [{ x: 0, y: 0 }], history: [], goals: [] });
+    MiniChart.draw(canvas, { series: [], history: history.length ? history : [{ x: 0, y: 0 }], goals: [] });
   }
 
   function personCategoryFields(prefix, breakdown) {
