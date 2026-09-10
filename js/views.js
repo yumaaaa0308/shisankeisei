@@ -31,61 +31,6 @@ const Views = (() => {
     return `<div class="breakdown-list">${rows}</div>`;
   }
 
-  // 資産形成の状況を、登録済みデータから客観的な事実として要約する(最大3件)
-  function buildInsights(data) {
-    const insights = [];
-    const currentAssets = Model.currentAssets(data);
-    const latest = Model.latestHistoryEntry(data.history);
-
-    if (data.goals.length > 0) {
-      const statuses = data.goals.map((g) => ({ g, st: Model.goalStatus(g, data) }));
-      const short = statuses.filter((s) => !s.st.onTrack);
-      if (short.length === 0) {
-        insights.push(`登録した目標(${data.goals.length}件)は、いずれも現在のペースで目標日までに達成できる見込みです。`);
-      } else {
-        const shortfallTotal = short.reduce((sum, s) => sum + Math.abs(s.st.diff), 0);
-        insights.push(`目標${data.goals.length}件のうち${short.length}件が、現在のペースでは目標日までに届かない見込みです(不足額の合計 ${Fmt.man(shortfallTotal)})。`);
-      }
-    }
-
-    if (data.history.length >= 2) {
-      const sorted = [...data.history].sort((a, b) => a.date.localeCompare(b.date));
-      const firstTotal = Categories.total(combinedBreakdown(sorted[0], data.settings.partnerEnabled));
-      const lastTotal = Categories.total(combinedBreakdown(sorted[sorted.length - 1], data.settings.partnerEnabled));
-      if (firstTotal > 0) {
-        const diff = lastTotal - firstTotal;
-        const pct = Math.round((diff / firstTotal) * 1000) / 10;
-        const sign = diff >= 0 ? "+" : "";
-        insights.push(`${Fmt.dateJp(sorted[0].date)}の記録開始時点と比べて、資産は${sign}${Fmt.man(diff)}(${sign}${pct}%)${diff >= 0 ? "増加" : "減少"}しています。`);
-      }
-    }
-
-    if (latest && currentAssets > 0) {
-      const breakdown = combinedBreakdown(latest, data.settings.partnerEnabled);
-      const top = Categories.LIST.map((c) => ({ c, v: breakdown[c.key] || 0 })).sort((a, b) => b.v - a.v)[0];
-      const topPct = Math.round((top.v / currentAssets) * 100);
-      if (topPct >= 60) {
-        insights.push(`資産の${topPct}%が${top.c.label}に集中しています。`);
-      } else {
-        const cashShare = Math.round(((breakdown.cash || 0) / currentAssets) * 100);
-        if (cashShare >= 30 && (data.settings.categoryRates.cash || 0) === 0) {
-          insights.push(`想定利回り0%の現金が、資産全体の${cashShare}%を占めています。`);
-        }
-      }
-    }
-
-    if (currentAssets > 0 && data.settings.simulationYears > 0) {
-      const years = data.settings.simulationYears;
-      const fv = Model.futureValueAt(data, years);
-      if (fv > 0) {
-        const multiple = Math.round((fv / currentAssets) * 10) / 10;
-        insights.push(`このペースを続けた場合、${years}年後には資産が現在の約${multiple}倍(${Fmt.man(fv)})になる見込みです。`);
-      }
-    }
-
-    return insights.slice(0, 3);
-  }
-
   // ---------- ホーム ----------
   function renderHome(data, categoryChartMode, hiddenCategories) {
     const chartMode = data.settings.partnerEnabled ? (categoryChartMode || "combined") : "combined";
@@ -154,8 +99,6 @@ const Views = (() => {
         </div>`;
     }
 
-    const insights = hasHistory ? buildInsights(data) : [];
-
     return `
       ${setupNotice}
       <div class="card">
@@ -165,14 +108,6 @@ const Views = (() => {
         ${breakdownHtml}
         ${peopleSplitHtml}
       </div>
-
-      ${insights.length ? `
-      <div class="card">
-        <h2>資産形成の状況</h2>
-        <ul class="insight-list">
-          ${insights.map((i) => `<li>${i}</li>`).join("")}
-        </ul>
-      </div>` : ""}
 
       <div class="stat-grid">
         <div class="stat">
