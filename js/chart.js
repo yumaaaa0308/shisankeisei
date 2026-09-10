@@ -151,6 +151,17 @@ const MiniChart = (() => {
     });
   }
 
+  // points: [{x,y}] ラインの各データ点(1年ごと)に小さな丸印を打つ
+  function drawLinePoints(ctx, scale, points, color) {
+    ctx.fillStyle = color;
+    points.forEach((p) => {
+      const px = scale.xToPx(p.x), py = scale.yToPx(p.y);
+      ctx.beginPath();
+      ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
   // dots: [{x,y,color}] 選択位置に点を打つ(データ実座標)
   function drawDots(ctx, scale, dots) {
     dots.forEach((d) => {
@@ -272,6 +283,7 @@ const MiniChart = (() => {
         ctx.closePath();
         ctx.fillStyle = "rgba(91, 141, 239, 0.08)";
         ctx.fill();
+        drawLinePoints(ctx, scale, series, COLORS.projection);
       }
 
       if (history.length > 0) {
@@ -339,6 +351,7 @@ const MiniChart = (() => {
           if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
         });
         ctx.stroke();
+        drawLinePoints(ctx, scale, line.points, line.color);
       });
 
       drawGoalMarkers(ctx, scale, goals);
