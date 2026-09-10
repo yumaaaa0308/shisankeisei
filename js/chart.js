@@ -40,6 +40,22 @@ const MiniChart = (() => {
     return { ctx, cssWidth, height };
   }
 
+  // 目盛りが1,2,5×10^nの「切りのいい数字」になるようステップ幅と上限を決める
+  function niceStep(rawMax, targetTicks) {
+    if (!(rawMax > 0)) return { step: 1, niceMax: targetTicks };
+    const roughStep = rawMax / targetTicks;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
+    const normalized = roughStep / magnitude;
+    let niceNormalized;
+    if (normalized <= 1) niceNormalized = 1;
+    else if (normalized <= 2) niceNormalized = 2;
+    else if (normalized <= 5) niceNormalized = 5;
+    else niceNormalized = 10;
+    const step = niceNormalized * magnitude;
+    const niceMax = Math.ceil(rawMax / step) * step;
+    return { step, niceMax };
+  }
+
   function computeScale(cssWidth, height, allX, allY) {
     const padL = 44, padR = 12, padT = 16, padB = 24;
     const plotW = cssWidth - padL - padR;
@@ -47,21 +63,22 @@ const MiniChart = (() => {
     const xMin = Math.min(...allX);
     const xMax = Math.max(...allX, xMin + 1);
     const yMin = 0;
-    const yMax = Math.max(...allY, 1) * 1.1;
+    const { step, niceMax } = niceStep(Math.max(...allY, 1), 5);
+    const yMax = niceMax;
     const xToPx = (x) => padL + ((x - xMin) / (xMax - xMin || 1)) * plotW;
     const yToPx = (y) => padT + plotH - ((y - yMin) / (yMax - yMin || 1)) * plotH;
-    return { padL, padR, padT, padB, plotW, plotH, xMin, xMax, yMin, yMax, xToPx, yToPx };
+    return { padL, padR, padT, padB, plotW, plotH, xMin, xMax, yMin, yMax, yStep: step, xToPx, yToPx };
   }
 
   function drawGridAndAxes(ctx, cssWidth, height, scale) {
-    const { padL, padR, padT, plotW, plotH, xMin, xMax, yMin, yMax, xToPx, yToPx } = scale;
+    const { padL, padR, padT, plotW, plotH, xMin, xMax, yMin, yMax, yStep, xToPx, yToPx } = scale;
     ctx.strokeStyle = COLORS.grid;
     ctx.fillStyle = COLORS.text;
     ctx.font = "10px -apple-system, sans-serif";
     ctx.lineWidth = 1;
-    const gridLines = 4;
-    for (let i = 0; i <= gridLines; i++) {
-      const y = yMin + ((yMax - yMin) * i) / gridLines;
+    const tickCount = Math.round((yMax - yMin) / yStep);
+    for (let i = 0; i <= tickCount; i++) {
+      const y = yMin + yStep * i;
       const py = yToPx(y);
       ctx.beginPath();
       ctx.moveTo(padL, py);
