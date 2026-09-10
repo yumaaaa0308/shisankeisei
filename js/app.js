@@ -2,6 +2,7 @@
   let data = Storage.load();
   let currentView = "home";
   let categoryChartMode = "combined"; // "combined" | "self" | "partner"
+  let hiddenCategories = new Set(); // カテゴリ別グラフで非表示にしているカテゴリキー
   const root = document.getElementById("view-root");
   const tabBar = document.getElementById("tab-bar");
 
@@ -33,9 +34,9 @@
     setActiveTab(currentView);
     switch (currentView) {
       case "home":
-        root.innerHTML = Views.renderHome(data, categoryChartMode);
+        root.innerHTML = Views.renderHome(data, categoryChartMode, hiddenCategories);
         Views.drawHomeChart(data);
-        Views.drawCategoryChart(data, categoryChartMode);
+        Views.drawCategoryChart(data, categoryChartMode, hiddenCategories);
         break;
       case "goals":
         root.innerHTML = Views.renderGoals(data);
@@ -117,7 +118,15 @@
             btn.classList.toggle("active", btn.dataset.mode === categoryChartMode);
           });
         }
-        Views.drawCategoryChart(data, categoryChartMode);
+        Views.drawCategoryChart(data, categoryChartMode, hiddenCategories);
+        break;
+      }
+      case "toggle-category-line": {
+        const key = actionEl.dataset.category;
+        if (hiddenCategories.has(key)) hiddenCategories.delete(key);
+        else hiddenCategories.add(key);
+        actionEl.classList.toggle("legend-off", hiddenCategories.has(key));
+        Views.drawCategoryChart(data, categoryChartMode, hiddenCategories);
         break;
       }
       case "toggle-partner-fields": {
@@ -279,7 +288,7 @@
   window.addEventListener("resize", () => {
     if (currentView === "home") {
       Views.drawHomeChart(data);
-      Views.drawCategoryChart(data, categoryChartMode);
+      Views.drawCategoryChart(data, categoryChartMode, hiddenCategories);
     }
     if (currentView === "history") Views.drawHistoryChart(data);
   });

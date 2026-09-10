@@ -388,4 +388,14 @@ canvas.chart {
 
 .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: var(--text-dim); }
 .legend-item { display: flex; align-items: center; gap: 6px; }
-.legend-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex-shrink: 0; }
+button.legend-toggle {
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  margin: -4px -2px;
+  font: inherit;
+  cursor: pointer;
+}
+button.legend-toggle.legend-off { color: var(--text-dim); opacity: 0.45; }
+button.legend-toggle.legend-off .legend-dot { background: var(--text-dim) !important; }

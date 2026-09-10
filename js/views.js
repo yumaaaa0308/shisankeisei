@@ -32,8 +32,9 @@ const Views = (() => {
   }
 
   // ---------- ホーム ----------
-  function renderHome(data, categoryChartMode) {
+  function renderHome(data, categoryChartMode, hiddenCategories) {
     const chartMode = data.settings.partnerEnabled ? (categoryChartMode || "combined") : "combined";
+    const hidden = hiddenCategories || new Set();
     const currentAssets = Model.currentAssets(data);
     const hasHistory = data.history.length > 0;
     const maxYears = Math.max(
@@ -144,7 +145,9 @@ const Views = (() => {
         <canvas class="chart" id="category-chart"></canvas>
         <div class="legend">
           ${Categories.LIST.map((c) => `
-          <span class="legend-item"><span class="legend-dot" style="background:${c.color}"></span>${c.label}</span>`).join("")}
+          <button type="button" class="legend-item legend-toggle ${hidden.has(c.key) ? "legend-off" : ""}" data-action="toggle-category-line" data-category="${c.key}">
+            <span class="legend-dot" style="background:${c.color}"></span>${c.label}
+          </button>`).join("")}
           ${hasCategoryGoals && chartMode === "combined" ? `
           <span class="legend-item"><span class="legend-dot" style="background:#22d3ee"></span>目標(達成見込み)</span>
           <span class="legend-item"><span class="legend-dot" style="background:#f87171"></span>目標(不足)</span>` : ""}
@@ -157,17 +160,18 @@ const Views = (() => {
     `;
   }
 
-  function drawCategoryChart(data, categoryChartMode) {
+  function drawCategoryChart(data, categoryChartMode, hiddenCategories) {
     const canvas = document.getElementById("category-chart");
     if (!canvas) return;
     const chartMode = data.settings.partnerEnabled ? (categoryChartMode || "combined") : "combined";
+    const hidden = hiddenCategories || new Set();
     const maxYears = Math.max(
       data.settings.simulationYears,
       ...data.goals.map((g) => Math.ceil(Model.monthsUntil(g.targetDate) / 12)),
       1
     );
     const byKey = Model.categorySeriesByKey(data, maxYears, chartMode);
-    const lines = Categories.LIST.map((c) => ({
+    const lines = Categories.LIST.filter((c) => !hidden.has(c.key)).map((c) => ({
       color: c.color,
       label: c.label,
       points: byKey[c.key].map((p) => ({ x: p.year, y: p.value }))
