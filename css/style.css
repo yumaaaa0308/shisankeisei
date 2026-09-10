@@ -218,7 +218,8 @@ canvas.chart {
   color: var(--text-dim);
   margin-bottom: 6px;
 }
-.field input {
+.field input,
+.field select {
   width: 100%;
   background: var(--bg-elevated);
   border: 1px solid var(--border);

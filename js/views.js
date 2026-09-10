@@ -43,6 +43,8 @@ const Views = (() => {
     const series = Model.projectionSeries(data, maxYears).map((p) => ({ x: p.year, y: p.value }));
     const fvAtHorizon = series.length ? series[series.length - 1].y : 0;
     const onTrackCount = data.goals.filter((g) => Model.goalStatus(g, data).onTrack).length;
+    const hasTotalGoals = data.goals.some((g) => !g.fundingSource || g.fundingSource === "total");
+    const hasCategoryGoals = data.goals.some((g) => g.fundingSource && g.fundingSource !== "total");
 
     let setupNotice = "";
     if (!hasHistory) {
@@ -68,7 +70,7 @@ const Views = (() => {
           <div class="list-item">
             <div class="li-main">
               <div class="li-title">${escapeHtml(g.name)}</div>
-              <div class="li-sub">${g.targetYear}年 (${st.yearsFromNow}年後)・目標 ${Fmt.man(g.targetAmount)}</div>
+              <div class="li-sub">${g.targetYear}年 (${st.yearsFromNow}年後)・目標 ${Fmt.man(g.targetAmount)}・${fundingSourceLabel(g.fundingSource)}</div>
             </div>
             ${badge}
           </div>`;
@@ -122,7 +124,7 @@ const Views = (() => {
         <div class="legend">
           <span class="legend-item"><span class="legend-dot" style="background:#5b8def"></span>シミュレーション</span>
           <span class="legend-item"><span class="legend-dot" style="background:#34d399"></span>実績</span>
-          ${data.goals.length ? `
+          ${hasTotalGoals ? `
           <span class="legend-item"><span class="legend-dot" style="background:#22d3ee"></span>目標(達成見込み)</span>
           <span class="legend-item"><span class="legend-dot" style="background:#f87171"></span>目標(不足)</span>` : ""}
         </div>
@@ -134,6 +136,9 @@ const Views = (() => {
         <div class="legend">
           ${Categories.LIST.map((c) => `
           <span class="legend-item"><span class="legend-dot" style="background:${c.color}"></span>${c.label}</span>`).join("")}
+          ${hasCategoryGoals ? `
+          <span class="legend-item"><span class="legend-dot" style="background:#22d3ee"></span>目標(達成見込み)</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#f87171"></span>目標(不足)</span>` : ""}
         </div>
       </div>
 
@@ -157,7 +162,13 @@ const Views = (() => {
       label: c.label,
       points: byKey[c.key].map((p) => ({ x: p.year, y: p.value }))
     }));
-    MiniChart.drawMultiLine(canvas, { lines });
+    const goals = data.goals
+      .filter((g) => g.fundingSource && g.fundingSource !== "total")
+      .map((g) => {
+        const st = Model.goalStatus(g, data);
+        return { x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack };
+      });
+    MiniChart.drawMultiLine(canvas, { lines, goals });
   }
 
   function drawHomeChart(data) {
@@ -177,10 +188,12 @@ const Views = (() => {
       return { x: yearFrac, y: Categories.total(combinedBreakdown(h, data.settings.partnerEnabled)) };
     });
 
-    const goals = data.goals.map((g) => {
-      const st = Model.goalStatus(g, data);
-      return { x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack };
-    });
+    const goals = data.goals
+      .filter((g) => !g.fundingSource || g.fundingSource === "total")
+      .map((g) => {
+        const st = Model.goalStatus(g, data);
+        return { x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack };
+      });
 
     MiniChart.draw(canvas, { series, history, goals });
   }
@@ -188,6 +201,12 @@ const Views = (() => {
   function yearMonthOf(iso) {
     const d = new Date(iso + "T00:00:00");
     return d.getFullYear() * 12 + d.getMonth();
+  }
+
+  function fundingSourceLabel(key) {
+    if (!key || key === "total") return "全体(合計)";
+    const c = Categories.find(key);
+    return c ? c.label : "全体(合計)";
   }
 
   // ---------- 目標 ----------
@@ -210,7 +229,7 @@ const Views = (() => {
           <div class="list-item">
             <div class="li-main">
               <div class="li-title">${escapeHtml(g.name)}</div>
-              <div class="li-sub">${g.targetYear}年・目標 ${Fmt.man(g.targetAmount)}${g.note ? " ・ " + escapeHtml(g.note) : ""}</div>
+              <div class="li-sub">${g.targetYear}年・目標 ${Fmt.man(g.targetAmount)}・資金源: ${fundingSourceLabel(g.fundingSource)}${g.note ? " ・ " + escapeHtml(g.note) : ""}</div>
               <div class="li-sub">予測: ${Fmt.man(st.projected)} ${badge}</div>
             </div>
             <div class="li-actions">
@@ -230,7 +249,10 @@ const Views = (() => {
 
   function goalFormModal(goal) {
     const isEdit = !!goal;
-    const g = goal || { name: "", targetAmount: 0, targetYear: Sim.currentYear() + 5, note: "" };
+    const g = goal || { name: "", targetAmount: 0, targetYear: Sim.currentYear() + 5, note: "", fundingSource: "total" };
+    const fundingOptions = [{ key: "total", label: "全体(すべての資産合計)" }, ...Categories.LIST]
+      .map((c) => `<option value="${c.key}" ${g.fundingSource === c.key ? "selected" : ""}>${c.label}</option>`)
+      .join("");
     return `
       <div class="modal-backdrop" data-action="close-modal">
         <div class="modal-sheet" onclick="event.stopPropagation()">
@@ -247,6 +269,11 @@ const Views = (() => {
             <div class="field">
               <label>目標年(西暦)</label>
               <input type="number" name="targetYear" inputmode="numeric" value="${g.targetYear}" min="${Sim.currentYear()}" required>
+            </div>
+            <div class="field">
+              <label>資金源</label>
+              <select name="fundingSource">${fundingOptions}</select>
+              <div class="hint">この目標をどの資産で用意するか。例: 車は現金、老後資金はDCなど</div>
             </div>
             <div class="field">
               <label>メモ(任意)</label>

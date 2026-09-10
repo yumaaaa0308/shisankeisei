@@ -20,7 +20,10 @@ const Categories = (() => {
     LIST.forEach((cat) => (c[cat.key] = { monthly: 0, bonus: 0 }));
     return c;
   }
-  return { LIST, emptyBreakdown, total, emptyContributions };
+  function find(key) {
+    return LIST.find((c) => c.key === key);
+  }
+  return { LIST, emptyBreakdown, total, emptyContributions, find };
 })();
 
 // データ保存(localStorageのみ・サーバー送信なし)
@@ -40,8 +43,13 @@ const Storage = (() => {
       },
       // history entry: { id, date: 'YYYY-MM-DD', self: {nisa,dc,cash,stock}(円), partner: {同上} }
       history: [],
-      goals: [] // { id, name, targetAmount(円), targetYear(西暦), note }
+      // goal: { id, name, targetAmount(円), targetYear(西暦), note, fundingSource: "total"|"nisa"|"dc"|"cash"|"stock" }
+      goals: []
     };
+  }
+
+  function normalizeGoal(goal) {
+    return { ...goal, fundingSource: goal.fundingSource || "total" };
   }
 
   function normalizeHistoryEntry(entry) {
@@ -110,7 +118,7 @@ const Storage = (() => {
         settings,
         people,
         history: Array.isArray(parsed.history) ? parsed.history.map(normalizeHistoryEntry) : [],
-        goals: Array.isArray(parsed.goals) ? parsed.goals : []
+        goals: Array.isArray(parsed.goals) ? parsed.goals.map(normalizeGoal) : []
       };
     } catch (e) {
       console.error("Failed to load data, resetting.", e);

@@ -131,6 +131,26 @@ const MiniChart = (() => {
     ctx.closePath();
   }
 
+  // goals: [{x,y,onTrack}] 目標マーカー(縦の破線+丸)を描画する
+  function drawGoalMarkers(ctx, scale, goals) {
+    goals.forEach((g) => {
+      const px = scale.xToPx(g.x), py = scale.yToPx(g.y);
+      const color = g.onTrack ? COLORS.goalOnTrack : COLORS.goalOff;
+      ctx.strokeStyle = color;
+      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px, scale.padT);
+      ctx.lineTo(px, scale.padT + scale.plotH);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(px, py, 4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
   // dots: [{x,y,color}] 選択位置に点を打つ(データ実座標)
   function drawDots(ctx, scale, dots) {
     dots.forEach((d) => {
@@ -274,21 +294,7 @@ const MiniChart = (() => {
         });
       }
 
-      goals.forEach((g) => {
-        const px = scale.xToPx(g.x), py = scale.yToPx(g.y);
-        ctx.strokeStyle = g.onTrack ? COLORS.goalOnTrack : COLORS.goalOff;
-        ctx.setLineDash([3, 3]);
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(px, scale.padT);
-        ctx.lineTo(px, scale.padT + scale.plotH);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = g.onTrack ? COLORS.goalOnTrack : COLORS.goalOff;
-        ctx.beginPath();
-        ctx.arc(px, py, 4, 0, Math.PI * 2);
-        ctx.fill();
-      });
+      drawGoalMarkers(ctx, scale, goals);
 
       if (selectedYear !== null) {
         const seriesPoint = nearestPoint(series, selectedYear);
@@ -312,9 +318,10 @@ const MiniChart = (() => {
 
   // カテゴリ別の複数ラインを重ねて描画する(合計ラインは表示しない)
   // lines: [{ color, label, points: [{x,y}] }]
-  function drawMultiLine(canvas, { lines }) {
+  // goals: [{x,y,onTrack}] 資金源がカテゴリ指定の目標マーカー
+  function drawMultiLine(canvas, { lines, goals = [] }) {
     const { ctx, cssWidth, height } = setupCanvas(canvas);
-    const allPoints = lines.flatMap((l) => l.points);
+    const allPoints = lines.flatMap((l) => l.points).concat(goals);
     if (allPoints.length === 0) return;
     const scale = computeScale(cssWidth, height, allPoints.map((p) => p.x), allPoints.map((p) => p.y));
 
@@ -333,6 +340,8 @@ const MiniChart = (() => {
         });
         ctx.stroke();
       });
+
+      drawGoalMarkers(ctx, scale, goals);
 
       if (selectedYear !== null) {
         const picks = lines

@@ -84,10 +84,22 @@ const Model = (() => {
     return result;
   }
 
+  // 特定カテゴリ1つだけの資産がyearsFromNow年後にいくらになるか
+  function categoryFutureValueAt(data, categoryKey, yearsFromNow) {
+    const principals = categoryPrincipals(data);
+    const monthly = categoryMonthly(data);
+    const bonus = categoryBonus(data);
+    const rate = data.settings.categoryRates[categoryKey] || 0;
+    return Sim.futureValue(principals[categoryKey], monthly[categoryKey], bonus[categoryKey], rate, yearsFromNow);
+  }
+
   function goalStatus(goal, data) {
     const nowYear = Sim.currentYear();
     const yearsFromNow = Math.max(0, goal.targetYear - nowYear);
-    const projected = futureValueAt(data, yearsFromNow);
+    const isCategoryFunded = goal.fundingSource && goal.fundingSource !== "total";
+    const projected = isCategoryFunded
+      ? categoryFutureValueAt(data, goal.fundingSource, yearsFromNow)
+      : futureValueAt(data, yearsFromNow);
     const diff = projected - goal.targetAmount;
     return { yearsFromNow, projected, diff, onTrack: diff >= 0 };
   }
@@ -99,6 +111,7 @@ const Model = (() => {
     categoryBonus,
     currentAssets,
     futureValueAt,
+    categoryFutureValueAt,
     projectionSeries,
     categorySeriesByKey,
     goalStatus
