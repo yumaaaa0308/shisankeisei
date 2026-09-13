@@ -176,15 +176,19 @@ const Views = (() => {
       label: c.label,
       points: byKey[c.key].map((p) => ({ x: p.year, y: p.value }))
     }));
-    const goals = chartMode === "combined"
-      ? data.goals
-          .filter((g) => g.fundingSource && g.fundingSource !== "total")
-          .map((g) => {
-            const st = Model.goalStatus(g, data);
-            return { x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack };
-          })
+    const categoryGoals = chartMode === "combined"
+      ? data.goals.filter((g) => g.fundingSource && g.fundingSource !== "total")
       : [];
-    MiniChart.drawMultiLine(canvas, { lines, goals });
+    const goals = categoryGoals.map((g) => {
+      const st = Model.goalStatus(g, data);
+      return { x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack };
+    });
+    const projectionMarkers = categoryGoals.map((g) => {
+      const st = Model.goalStatus(g, data);
+      const cat = Categories.find(g.fundingSource);
+      return { x: st.yearsFromNow, y: st.projected, color: cat ? cat.color : "#5b8def", label: Fmt.man(st.projected) };
+    });
+    MiniChart.drawMultiLine(canvas, { lines, goals, projectionMarkers });
   }
 
   function drawHomeChart(data) {
@@ -204,14 +208,17 @@ const Views = (() => {
       return { x: yearFrac, y: Categories.total(combinedBreakdown(h, data.settings.partnerEnabled)) };
     });
 
-    const goals = data.goals
-      .filter((g) => !g.fundingSource || g.fundingSource === "total")
-      .map((g) => {
-        const st = Model.goalStatus(g, data);
-        return { x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack };
-      });
+    const totalGoals = data.goals.filter((g) => !g.fundingSource || g.fundingSource === "total");
+    const goals = totalGoals.map((g) => {
+      const st = Model.goalStatus(g, data);
+      return { x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack };
+    });
+    const projectionMarkers = totalGoals.map((g) => {
+      const st = Model.goalStatus(g, data);
+      return { x: st.yearsFromNow, y: st.projected, color: "#5b8def", label: Fmt.man(st.projected) };
+    });
 
-    MiniChart.draw(canvas, { series, history, goals });
+    MiniChart.draw(canvas, { series, history, goals, projectionMarkers });
   }
 
   function yearMonthOf(iso) {

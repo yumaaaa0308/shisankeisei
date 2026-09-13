@@ -167,6 +167,32 @@ const MiniChart = (() => {
     });
   }
 
+  // markers: [{x,y,color,label}] 目標の時点で実際の予測額がいくらになるかを、常時見える点+ラベルで示す
+  function drawValueMarkers(ctx, cssWidth, scale, markers) {
+    markers.forEach((m) => {
+      const px = scale.xToPx(m.x), py = scale.yToPx(m.y);
+
+      ctx.fillStyle = m.color;
+      ctx.beginPath();
+      ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#0b1120";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      ctx.font = "10px -apple-system, sans-serif";
+      const textW = ctx.measureText(m.label).width;
+      let tx = px - textW / 2;
+      tx = Math.max(2, Math.min(cssWidth - textW - 2, tx));
+      const ty = Math.max(scale.padT + 10, py - 8);
+
+      ctx.fillStyle = "rgba(11, 17, 32, 0.85)";
+      ctx.fillRect(tx - 3, ty - 10, textW + 6, 13);
+      ctx.fillStyle = m.color;
+      ctx.fillText(m.label, tx, ty);
+    });
+  }
+
   // points: [{x,y}] ラインの各データ点(1年ごと)に小さな丸印を打つ
   function drawLinePoints(ctx, scale, points, color) {
     ctx.fillStyle = color;
@@ -274,7 +300,8 @@ const MiniChart = (() => {
   // series: [{x:number, y:number}] sorted by x ascending (required)
   // history: [{x:number, y:number}] optional, actual recorded points
   // goals: [{x:number, y:number, label:string, onTrack:boolean}] optional
-  function draw(canvas, { series, history = [], goals = [] }) {
+  // projectionMarkers: [{x,y,color,label}] 目標時点の実際の予測額を常時表示する点
+  function draw(canvas, { series, history = [], goals = [], projectionMarkers = [] }) {
     const { ctx, cssWidth, height } = setupCanvas(canvas);
     const allX = series.map((p) => p.x).concat(history.map((p) => p.x)).concat(goals.map((p) => p.x));
     const allY = series.map((p) => p.y).concat(history.map((p) => p.y)).concat(goals.map((p) => p.y));
@@ -323,6 +350,7 @@ const MiniChart = (() => {
       }
 
       drawGoalMarkers(ctx, scale, goals);
+      drawValueMarkers(ctx, cssWidth, scale, projectionMarkers);
 
       if (selectedYear !== null) {
         const seriesPoint = nearestPoint(series, selectedYear);
@@ -347,7 +375,8 @@ const MiniChart = (() => {
   // カテゴリ別の複数ラインを重ねて描画する(合計ラインは表示しない)
   // lines: [{ color, label, points: [{x,y}] }]
   // goals: [{x,y,onTrack}] 資金源がカテゴリ指定の目標マーカー
-  function drawMultiLine(canvas, { lines, goals = [] }) {
+  // projectionMarkers: [{x,y,color,label}] 目標時点の実際の予測額を常時表示する点
+  function drawMultiLine(canvas, { lines, goals = [], projectionMarkers = [] }) {
     const { ctx, cssWidth, height } = setupCanvas(canvas);
     const allPoints = lines.flatMap((l) => l.points).concat(goals);
     if (allPoints.length === 0) return;
@@ -371,6 +400,7 @@ const MiniChart = (() => {
       });
 
       drawGoalMarkers(ctx, scale, goals);
+      drawValueMarkers(ctx, cssWidth, scale, projectionMarkers);
 
       if (selectedYear !== null) {
         const picks = lines
