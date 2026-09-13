@@ -350,9 +350,11 @@ const MiniChart = (() => {
       }
 
       drawGoalMarkers(ctx, scale, goals);
-      drawValueMarkers(ctx, cssWidth, scale, projectionMarkers);
 
       if (selectedYear !== null) {
+        const nearMarkers = projectionMarkers.filter((m) => Math.abs(m.x - selectedYear) <= 0.75);
+        drawValueMarkers(ctx, cssWidth, scale, nearMarkers);
+
         const seriesPoint = nearestPoint(series, selectedYear);
         const histPoint = nearestPoint(history, selectedYear);
         const useHist = histPoint && (!seriesPoint || Math.abs(histPoint.x - selectedYear) < Math.abs(seriesPoint.x - selectedYear));
@@ -400,9 +402,11 @@ const MiniChart = (() => {
       });
 
       drawGoalMarkers(ctx, scale, goals);
-      drawValueMarkers(ctx, cssWidth, scale, projectionMarkers);
 
       if (selectedYear !== null) {
+        const nearMarkers = projectionMarkers.filter((m) => Math.abs(m.x - selectedYear) <= 0.75);
+        drawValueMarkers(ctx, cssWidth, scale, nearMarkers);
+
         const picks = lines
           .map((line) => ({ line, point: nearestPoint(line.points, selectedYear) }))
           .filter((p) => p.point);
