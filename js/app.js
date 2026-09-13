@@ -3,10 +3,6 @@
   let currentView = "home";
   let categoryChartMode = "combined"; // "combined" | "self" | "partner"
   let hiddenCategories = new Set(); // カテゴリ別グラフで非表示にしているカテゴリキー
-  const todayForCashflow = new Date();
-  let cashflowYear = todayForCashflow.getFullYear();
-  let cashflowMonth = todayForCashflow.getMonth() + 1; // 1-12
-  let cashflowSelectedDay = todayForCashflow.getDate();
   const root = document.getElementById("view-root");
   const tabBar = document.getElementById("tab-bar");
 
@@ -48,9 +44,6 @@
       case "history":
         root.innerHTML = Views.renderHistory(data);
         Views.drawHistoryChart(data);
-        break;
-      case "cashflow":
-        root.innerHTML = Views.renderCashflow(data, cashflowYear, cashflowMonth, cashflowSelectedDay);
         break;
       case "settings":
         root.innerHTML = Views.renderSettings(data);
@@ -145,41 +138,6 @@
         if (confirm("この記録を削除しますか？")) {
           data.history = data.history.filter((h) => h.id !== actionEl.dataset.id);
           persistAndToast("記録を削除しました");
-        }
-        break;
-      }
-      case "cashflow-prev-month": {
-        cashflowMonth -= 1;
-        if (cashflowMonth < 1) { cashflowMonth = 12; cashflowYear -= 1; }
-        cashflowSelectedDay = null;
-        render();
-        break;
-      }
-      case "cashflow-next-month": {
-        cashflowMonth += 1;
-        if (cashflowMonth > 12) { cashflowMonth = 1; cashflowYear += 1; }
-        cashflowSelectedDay = null;
-        render();
-        break;
-      }
-      case "select-cashflow-day": {
-        const day = parseInt(actionEl.dataset.day, 10);
-        cashflowSelectedDay = cashflowSelectedDay === day ? null : day;
-        render();
-        break;
-      }
-      case "add-cashflow-item":
-        openModal(Views.cashflowItemFormModal(null, actionEl.dataset.prefillDate || null));
-        break;
-      case "edit-cashflow-item": {
-        const item = data.cashflow.items.find((it) => it.id === actionEl.dataset.id);
-        openModal(Views.cashflowItemFormModal(item, null));
-        break;
-      }
-      case "delete-cashflow-item": {
-        if (confirm("この項目を削除しますか？")) {
-          data.cashflow.items = data.cashflow.items.filter((it) => it.id !== actionEl.dataset.id);
-          persistAndToast("項目を削除しました");
         }
         break;
       }
@@ -297,24 +255,9 @@
 
   // ---- 金額入力欄を桁区切り表示にする(フォーカスが外れたタイミングで整形) ----
   document.addEventListener("focusout", (e) => {
-    if (!e.target.classList) return;
-    if (e.target.classList.contains("comma-input")) {
-      const num = Fmt.parseCommaNum(e.target.value);
-      e.target.value = e.target.value.trim() === "" ? "" : Fmt.manInputValue(num * 10000);
-    } else if (e.target.classList.contains("comma-input-yen")) {
-      const num = Fmt.parseCommaNum(e.target.value);
-      e.target.value = e.target.value.trim() === "" ? "" : Fmt.yenInputValue(num);
-    }
-  });
-
-  // ---- 収支フォーム: 繰り返し種別に応じて日付/日にち入力を切り替え ----
-  document.addEventListener("change", (e) => {
-    if (e.target.name !== "recurrence" || !e.target.closest("#cashflow-form")) return;
-    const isMonthly = e.target.value === "monthly";
-    const dayField = document.getElementById("cf-day-field");
-    const dateField = document.getElementById("cf-date-field");
-    if (dayField) dayField.style.display = isMonthly ? "" : "none";
-    if (dateField) dateField.style.display = isMonthly ? "none" : "";
+    if (!e.target.classList || !e.target.classList.contains("comma-input")) return;
+    const num = Fmt.parseCommaNum(e.target.value);
+    e.target.value = e.target.value.trim() === "" ? "" : Fmt.manInputValue(num * 10000);
   });
 
   // ---- バックアップファイルの読み込み ----
@@ -391,29 +334,6 @@
       else data.history.push(entry);
       closeModal();
       persistAndToast("資産を記録しました");
-    }
-
-    if (targetId === "cashflow-form") {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const id = fd.get("recordId") || Storage.uid();
-      const recurrence = fd.get("recurrence") === "once" ? "once" : "monthly";
-      const item = {
-        id,
-        type: fd.get("type") === "income" ? "income" : "expense",
-        name: String(fd.get("name") || "").trim(),
-        amount: Math.round(Fmt.parseCommaNum(fd.get("amount"))),
-        recurrence,
-        day: Math.min(31, Math.max(1, parseInt(fd.get("day"), 10) || 1)),
-        date: String(fd.get("date") || "")
-      };
-      if (!item.name || !item.amount) return;
-      if (recurrence === "once" && !item.date) return;
-      const idx = data.cashflow.items.findIndex((it) => it.id === id);
-      if (idx >= 0) data.cashflow.items[idx] = item;
-      else data.cashflow.items.push(item);
-      closeModal();
-      persistAndToast("項目を保存しました");
     }
 
     if (targetId === "settings-form") {

@@ -44,22 +44,7 @@ const Storage = (() => {
       // history entry: { id, date: 'YYYY-MM-DD', self: {nisa,dc,cash,stock}(円), partner: {同上} }
       history: [],
       // goal: { id, name, targetAmount(円), targetDate('YYYY-MM'), note, fundingSource: "total"|"nisa"|"dc"|"cash"|"stock" }
-      goals: [],
-      // cashflow item: { id, type: "income"|"expense", name, amount(円),
-      //   recurrence: "monthly"|"once", day(1-31, monthly用), date('YYYY-MM-DD', once用) }
-      cashflow: { items: [] }
-    };
-  }
-
-  function normalizeCashflowItem(item) {
-    return {
-      id: item.id,
-      type: item.type === "income" ? "income" : "expense",
-      name: item.name || "",
-      amount: item.amount || 0,
-      recurrence: item.recurrence === "once" ? "once" : "monthly",
-      day: item.day || 1,
-      date: item.date || ""
+      goals: []
     };
   }
 
@@ -142,15 +127,11 @@ const Storage = (() => {
           )
         }
       };
-      const parsedCashflow = parsed.cashflow || {};
       return {
         settings,
         people,
         history: Array.isArray(parsed.history) ? parsed.history.map(normalizeHistoryEntry) : [],
-        goals: Array.isArray(parsed.goals) ? parsed.goals.map(normalizeGoal) : [],
-        cashflow: {
-          items: Array.isArray(parsedCashflow.items) ? parsedCashflow.items.map(normalizeCashflowItem) : []
-        }
+        goals: Array.isArray(parsed.goals) ? parsed.goals.map(normalizeGoal) : []
       };
     } catch (e) {
       console.error("Failed to load data, resetting.", e);
@@ -185,18 +166,6 @@ const Fmt = (() => {
     const v = (n || 0) / 10000;
     const rounded = Math.round(v * 10) / 10;
     return rounded.toLocaleString("ja-JP", { maximumFractionDigits: 1 }) + "万円";
-  }
-  function compactYen(n) {
-    // カレンダーの小さいマス用の省略表示(単位なし)
-    const v = Math.round(n || 0);
-    if (Math.abs(v) >= 10000) {
-      return (Math.round(v / 1000) / 10).toLocaleString("ja-JP", { maximumFractionDigits: 1 }) + "万";
-    }
-    return v.toLocaleString("ja-JP");
-  }
-  function yenInputValue(n) {
-    // 円入力欄用(桁区切りのみ)
-    return Math.round(n || 0).toLocaleString("ja-JP");
   }
   function manInputValue(n) {
     // 入力欄用(桁区切りのみ、単位なし)
@@ -241,7 +210,7 @@ const Fmt = (() => {
     return `${years}年${months}ヶ月後`;
   }
   return {
-    yen, man, manInputValue, compactYen, yenInputValue, parseCommaNum,
+    yen, man, manInputValue, parseCommaNum,
     dateJp, todayIso, currentYearMonth, yearMonthJp, countdownLabel
   };
 })();
