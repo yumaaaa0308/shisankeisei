@@ -240,7 +240,7 @@
         alert("取り込めるデータがありませんでした。");
         return;
       }
-      if (!confirm(`${rows.length}件の資産推移データ(現金・持株会・NISA・DC)を取り込みます。同じ日付の記録があれば上書きします。よろしいですか？`)) return;
+      if (!confirm(`${rows.length}件の資産推移データ(現金(通常)・持株会・NISA・DC)を取り込みます。同じ日付の記録があれば上書きします。よろしいですか？`)) return;
 
       rows.forEach((row) => {
         const existing = data.history.find((h) => h.date === row.date);

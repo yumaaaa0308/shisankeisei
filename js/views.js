@@ -334,7 +334,7 @@ const Views = (() => {
       </div>`;
     const mfImportBtn = `
       <button class="btn btn-secondary btn-block" data-action="import-mf-csv" style="margin-top:10px;">マネーフォワードCSVを取り込む</button>
-      <div class="hint" style="text-align:center;margin-top:6px;">現金・持株会(株式)・NISA(投資信託)・DC(年金)を取り込みます。</div>
+      <div class="hint" style="text-align:center;margin-top:6px;">現金(通常)・持株会(株式)・NISA(投資信託)・DC(年金)を取り込みます。生活防衛資金は取り込み後に手入力で分けてください。</div>
       <input type="file" id="import-mf-file-input" accept=".csv,text/csv" class="hidden">
     `;
     if (!data.history.length) {

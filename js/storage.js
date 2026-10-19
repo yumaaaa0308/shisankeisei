@@ -3,7 +3,9 @@ const Categories = (() => {
   const LIST = [
     { key: "nisa", label: "NISA", color: "#5b8def" },
     { key: "dc", label: "DC", color: "#a78bfa" },
-    { key: "cash", label: "現金", color: "#34d399" },
+    // key "cash" は従来の「現金」データをそのまま引き継ぐため残し、表示名だけ「現金(通常)」にしている
+    { key: "cash", label: "現金(通常)", color: "#34d399" },
+    { key: "reserve", label: "現金(生活防衛資金)", color: "#f472b6" },
     { key: "stock", label: "持株会", color: "#fbbf24" }
   ];
   function emptyBreakdown() {
@@ -34,14 +36,14 @@ const Storage = (() => {
     return {
       settings: {
         simulationYears: 30,
-        categoryRates: { nisa: 5, dc: 5, cash: 0, stock: 3 }, // 年利(%)、カテゴリ共通
+        categoryRates: { nisa: 5, dc: 5, cash: 0, reserve: 0, stock: 3 }, // 年利(%)、カテゴリ共通
         partnerEnabled: false
       },
       people: {
         self: { name: "自分", contributions: Categories.emptyContributions() },
         partner: { name: "パートナー", contributions: Categories.emptyContributions() }
       },
-      // history entry: { id, date: 'YYYY-MM-DD', self: {nisa,dc,cash,stock}(円), partner: {同上} }
+      // history entry: { id, date: 'YYYY-MM-DD', self: {nisa,dc,cash,reserve,stock}(円), partner: {同上} }
       history: [],
       // goal: { id, name, targetAmount(円), targetDate('YYYY-MM'), note,
       //   fundingSources: カテゴリキーの配列(複数可)。空配列は「全体(合計)」 }
