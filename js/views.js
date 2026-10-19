@@ -65,13 +65,14 @@ const Views = (() => {
       .map((g) => {
         const st = Model.goalStatus(g, data);
         const badge = st.onTrack
-          ? `<span class="badge good">達成見込み +${Fmt.man(st.diff)}</span>`
-          : `<span class="badge bad">不足 ${Fmt.man(st.diff)}</span>`;
+          ? `<span class="badge good">世帯 達成見込み +${Fmt.man(st.diff)}</span>`
+          : `<span class="badge bad">世帯 不足 ${Fmt.man(st.diff)}</span>`;
         return `
           <div class="list-item">
             <div class="li-main">
               <div class="li-title">${escapeHtml(g.name)}</div>
               <div class="li-sub">${Fmt.yearMonthJp(g.targetDate)} (${Fmt.countdownLabel(st.monthsFromNow)})・目標 ${Fmt.man(g.targetAmount)}・${fundingSourceLabel(g)}</div>
+              ${goalPersonLines(g, data)}
             </div>
             ${badge}
           </div>`;
