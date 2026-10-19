@@ -300,7 +300,7 @@
         name: String(fd.get("name") || "").trim(),
         targetAmount: Math.round(Fmt.parseCommaNum(fd.get("targetAmountMan")) * 10000),
         targetDate: String(fd.get("targetDate") || ""),
-        fundingSource: String(fd.get("fundingSource") || "total"),
+        fundingSources: fd.getAll("fundingSources").map(String),
         note: String(fd.get("note") || "").trim()
       };
       if (!goal.name || isNaN(goal.targetAmount) || !goal.targetDate) return;

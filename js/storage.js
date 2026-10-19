@@ -43,7 +43,8 @@ const Storage = (() => {
       },
       // history entry: { id, date: 'YYYY-MM-DD', self: {nisa,dc,cash,stock}(円), partner: {同上} }
       history: [],
-      // goal: { id, name, targetAmount(円), targetDate('YYYY-MM'), note, fundingSource: "total"|"nisa"|"dc"|"cash"|"stock" }
+      // goal: { id, name, targetAmount(円), targetDate('YYYY-MM'), note,
+      //   fundingSources: カテゴリキーの配列(複数可)。空配列は「全体(合計)」 }
       goals: []
     };
   }
@@ -55,13 +56,18 @@ const Storage = (() => {
       const d = new Date();
       targetDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     }
+    // 旧形式(fundingSource: 単一文字列, "total"は全体)からの移行
+    let sources = [];
+    if (Array.isArray(goal.fundingSources)) sources = goal.fundingSources;
+    else if (goal.fundingSource && goal.fundingSource !== "total") sources = [goal.fundingSource];
+    sources = Categories.LIST.map((c) => c.key).filter((k) => sources.includes(k));
     return {
       id: goal.id,
       name: goal.name,
       targetAmount: goal.targetAmount,
       targetDate,
       note: goal.note || "",
-      fundingSource: goal.fundingSource || "total"
+      fundingSources: sources
     };
   }
 

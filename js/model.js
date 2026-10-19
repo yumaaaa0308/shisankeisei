@@ -62,39 +62,38 @@ const Model = (() => {
     return Math.max(0, targetMonths - nowMonths);
   }
 
-  // fundingKey: カテゴリキー、または"total"。excludeGoalId: 自分自身の目標評価時に除外するID
-  function goalsAsWithdrawals(data, fundingKey, excludeGoalId) {
-    return data.goals
-      .filter((g) => g.id !== excludeGoalId)
-      .filter((g) => (fundingKey === "total" ? (!g.fundingSource || g.fundingSource === "total") : g.fundingSource === fundingKey))
-      .map((g) => ({ month: monthsUntil(g.targetDate), amount: g.targetAmount }));
+  // 目標の資金源カテゴリ配列。空配列は「全体(合計)」を意味する
+  function goalSources(goal) {
+    return Array.isArray(goal.fundingSources) ? goal.fundingSources : [];
   }
 
-  function withdrawalMap(withdrawals, totalMonths) {
-    const map = new Map();
-    withdrawals.forEach((w) => {
-      if (w.month > totalMonths) return;
-      map.set(w.month, (map.get(w.month) || 0) + w.amount);
-    });
-    return map;
+  function isTotalGoal(goal) {
+    return goalSources(goal).length === 0;
+  }
+
+  // excludeGoalId: 自分自身の目標評価時に除外するID
+  function goalsAsWithdrawals(data, excludeGoalId) {
+    return data.goals
+      .filter((g) => g.id !== excludeGoalId)
+      .map((g) => ({ month: monthsUntil(g.targetDate), amount: g.targetAmount, sources: goalSources(g) }));
   }
 
   // カテゴリごとの月次残高: { nisa: [値0..totalMonths], dc: [...], ... }
-  // 資金源がそのカテゴリの目標は、目標日にその金額を残高から差し引く(who==="combined"のときのみ)
+  // カテゴリを資金源に指定した目標は、目標日にその金額を指定カテゴリの合算プールから
+  // 残高比で按分して差し引く(who==="combined"のときのみ)
   function categoryBalancesSeries(data, totalMonths, who = "combined", excludeGoalId) {
     const principals = categoryPrincipals(data, who);
     const monthly = categoryMonthly(data, who);
     const bonus = categoryBonus(data, who);
-    const result = {};
-    Categories.LIST.forEach((c) => {
-      const rate = data.settings.categoryRates[c.key] || 0;
-      const withdrawals = who === "combined" ? goalsAsWithdrawals(data, c.key, excludeGoalId) : [];
-      result[c.key] = Sim.simulateMonthly(
-        principals[c.key], monthly[c.key], bonus[c.key], rate, totalMonths,
-        withdrawalMap(withdrawals, totalMonths)
-      );
-    });
-    return result;
+    const categories = Categories.LIST.map((c) => ({
+      key: c.key,
+      principal: principals[c.key],
+      monthly: monthly[c.key],
+      bonus: bonus[c.key],
+      ratePercent: data.settings.categoryRates[c.key] || 0
+    }));
+    const withdrawals = who === "combined" ? goalsAsWithdrawals(data, excludeGoalId) : [];
+    return Sim.simulateJoint(categories, totalMonths, withdrawals);
   }
 
   // 世帯合計の月次残高: カテゴリ合計から、資金源「全体」の目標をその目標日以降ずっと差し引く
@@ -105,8 +104,8 @@ const Model = (() => {
       for (let m = 0; m <= totalMonths; m++) raw[m] += catBalances[c.key][m];
     });
 
-    const totalGoals = goalsAsWithdrawals(data, "total", excludeGoalId)
-      .filter((w) => w.month <= totalMonths)
+    const totalGoals = goalsAsWithdrawals(data, excludeGoalId)
+      .filter((w) => w.sources.length === 0 && w.month <= totalMonths)
       .sort((a, b) => a.month - b.month);
 
     const result = new Array(totalMonths + 1);
@@ -128,10 +127,11 @@ const Model = (() => {
     return totalBalancesSeries(data, totalMonths, excludeGoalId)[totalMonths];
   }
 
-  // 特定カテゴリ1つだけの資産がyearsFromNow年後にいくらになるか
-  function categoryFutureValueAt(data, categoryKey, yearsFromNow, excludeGoalId) {
+  // 指定カテゴリ(複数可)の合算資産がyearsFromNow年後にいくらになるか
+  function sourcesFutureValueAt(data, sources, yearsFromNow, excludeGoalId) {
     const totalMonths = Math.round(yearsFromNow * 12);
-    return categoryBalancesSeries(data, totalMonths, "combined", excludeGoalId)[categoryKey][totalMonths];
+    const balances = categoryBalancesSeries(data, totalMonths, "combined", excludeGoalId);
+    return sources.reduce((sum, key) => sum + balances[key][totalMonths], 0);
   }
 
   function projectionSeries(data, maxYears) {
@@ -159,10 +159,9 @@ const Model = (() => {
   function goalStatus(goal, data) {
     const totalMonths = monthsUntil(goal.targetDate);
     const yearsFromNow = totalMonths / 12;
-    const isCategoryFunded = goal.fundingSource && goal.fundingSource !== "total";
-    const projected = isCategoryFunded
-      ? categoryFutureValueAt(data, goal.fundingSource, yearsFromNow, goal.id)
-      : futureValueAt(data, yearsFromNow, goal.id);
+    const projected = isTotalGoal(goal)
+      ? futureValueAt(data, yearsFromNow, goal.id)
+      : sourcesFutureValueAt(data, goalSources(goal), yearsFromNow, goal.id);
     const diff = projected - goal.targetAmount;
     return { yearsFromNow, monthsFromNow: totalMonths, projected, diff, onTrack: diff >= 0 };
   }
@@ -174,7 +173,9 @@ const Model = (() => {
     categoryBonus,
     currentAssets,
     futureValueAt,
-    categoryFutureValueAt,
+    sourcesFutureValueAt,
+    goalSources,
+    isTotalGoal,
     projectionSeries,
     categorySeriesByKey,
     monthsUntil,

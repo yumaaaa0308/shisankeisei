@@ -45,8 +45,8 @@ const Views = (() => {
     const series = Model.projectionSeries(data, maxYears).map((p) => ({ x: p.year, y: p.value }));
     const fvAtHorizon = series.length ? series[series.length - 1].y : 0;
     const onTrackCount = data.goals.filter((g) => Model.goalStatus(g, data).onTrack).length;
-    const hasTotalGoals = data.goals.some((g) => !g.fundingSource || g.fundingSource === "total");
-    const hasCategoryGoals = data.goals.some((g) => g.fundingSource && g.fundingSource !== "total");
+    const hasTotalGoals = data.goals.some((g) => Model.isTotalGoal(g));
+    const hasCategoryGoals = data.goals.some((g) => !Model.isTotalGoal(g));
 
     let setupNotice = "";
     if (!hasHistory) {
@@ -72,7 +72,7 @@ const Views = (() => {
           <div class="list-item">
             <div class="li-main">
               <div class="li-title">${escapeHtml(g.name)}</div>
-              <div class="li-sub">${Fmt.yearMonthJp(g.targetDate)} (${Fmt.countdownLabel(st.monthsFromNow)})・目標 ${Fmt.man(g.targetAmount)}・${fundingSourceLabel(g.fundingSource)}</div>
+              <div class="li-sub">${Fmt.yearMonthJp(g.targetDate)} (${Fmt.countdownLabel(st.monthsFromNow)})・目標 ${Fmt.man(g.targetAmount)}・${fundingSourceLabel(g)}</div>
             </div>
             ${badge}
           </div>`;
@@ -177,7 +177,7 @@ const Views = (() => {
       points: byKey[c.key].map((p) => ({ x: p.year, y: p.value }))
     }));
     const categoryGoals = chartMode === "combined"
-      ? data.goals.filter((g) => g.fundingSource && g.fundingSource !== "total")
+      ? data.goals.filter((g) => !Model.isTotalGoal(g))
       : [];
     const goals = categoryGoals.map((g) => {
       const st = Model.goalStatus(g, data);
@@ -185,8 +185,10 @@ const Views = (() => {
     });
     const projectionMarkers = categoryGoals.map((g) => {
       const st = Model.goalStatus(g, data);
-      const cat = Categories.find(g.fundingSource);
-      return { x: st.yearsFromNow, y: st.projected, color: cat ? cat.color : "#5b8def", label: Fmt.man(st.projected) };
+      const sources = Model.goalSources(g);
+      // 資金源が1つならそのカテゴリ色、複数なら合算値なので中立色
+      const color = sources.length === 1 ? Categories.find(sources[0]).color : "#eef2ff";
+      return { x: st.yearsFromNow, y: st.projected, color, label: Fmt.man(st.projected) };
     });
     MiniChart.drawMultiLine(canvas, { lines, goals, projectionMarkers });
   }
@@ -208,7 +210,7 @@ const Views = (() => {
       return { x: yearFrac, y: Categories.total(combinedBreakdown(h, data.settings.partnerEnabled)) };
     });
 
-    const totalGoals = data.goals.filter((g) => !g.fundingSource || g.fundingSource === "total");
+    const totalGoals = data.goals.filter((g) => Model.isTotalGoal(g));
     const goals = totalGoals.map((g) => {
       const st = Model.goalStatus(g, data);
       return { x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack };
@@ -226,10 +228,10 @@ const Views = (() => {
     return d.getFullYear() * 12 + d.getMonth();
   }
 
-  function fundingSourceLabel(key) {
-    if (!key || key === "total") return "全体(合計)";
-    const c = Categories.find(key);
-    return c ? c.label : "全体(合計)";
+  function fundingSourceLabel(goal) {
+    const sources = Model.goalSources(goal);
+    if (!sources.length) return "全体(合計)";
+    return sources.map((k) => Categories.find(k).label).join("+");
   }
 
   // ---------- 目標 ----------
@@ -252,7 +254,7 @@ const Views = (() => {
           <div class="list-item">
             <div class="li-main">
               <div class="li-title">${escapeHtml(g.name)}</div>
-              <div class="li-sub">${Fmt.yearMonthJp(g.targetDate)}・目標 ${Fmt.man(g.targetAmount)}・資金源: ${fundingSourceLabel(g.fundingSource)}${g.note ? " ・ " + escapeHtml(g.note) : ""}</div>
+              <div class="li-sub">${Fmt.yearMonthJp(g.targetDate)}・目標 ${Fmt.man(g.targetAmount)}・資金源: ${fundingSourceLabel(g)}${g.note ? " ・ " + escapeHtml(g.note) : ""}</div>
               <div class="li-sub">予測: ${Fmt.man(st.projected)} ${badge}</div>
             </div>
             <div class="li-actions">
@@ -278,10 +280,15 @@ const Views = (() => {
 
   function goalFormModal(goal) {
     const isEdit = !!goal;
-    const g = goal || { name: "", targetAmount: 0, targetDate: defaultTargetDate(), note: "", fundingSource: "total" };
-    const fundingOptions = [{ key: "total", label: "全体(すべての資産合計)" }, ...Categories.LIST]
-      .map((c) => `<option value="${c.key}" ${g.fundingSource === c.key ? "selected" : ""}>${c.label}</option>`)
-      .join("");
+    const g = goal || { name: "", targetAmount: 0, targetDate: defaultTargetDate(), note: "", fundingSources: [] };
+    const selected = Model.goalSources(g);
+    const fundingOptions = Categories.LIST.map(
+      (c) => `
+                <label class="check-item">
+                  <input type="checkbox" name="fundingSources" value="${c.key}" ${selected.includes(c.key) ? "checked" : ""}>
+                  <span class="legend-dot" style="background:${c.color}"></span>${c.label}
+                </label>`
+    ).join("");
     return `
       <div class="modal-backdrop" data-action="close-modal">
         <div class="modal-sheet" data-action="noop">
@@ -300,9 +307,9 @@ const Views = (() => {
               <input type="month" name="targetDate" value="${g.targetDate}" min="${Fmt.currentYearMonth()}" required>
             </div>
             <div class="field">
-              <label>資金源</label>
-              <select name="fundingSource">${fundingOptions}</select>
-              <div class="hint">この目標をどの資産で用意するか。例: 車は現金、老後資金はDCなど</div>
+              <label>資金源(複数選択可)</label>
+              <div class="check-group">${fundingOptions}</div>
+              <div class="hint">どの資産で用意するか。複数選ぶと、選んだ資産の合計から残高比で支出します。未選択の場合は全体(すべての資産合計)から支出します。</div>
             </div>
             <div class="field">
               <label>メモ(任意)</label>
