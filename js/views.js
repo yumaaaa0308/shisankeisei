@@ -35,18 +35,17 @@ const Views = (() => {
   function renderHome(data, categoryChartMode, hiddenCategories) {
     const chartMode = data.settings.partnerEnabled ? (categoryChartMode || "combined") : "combined";
     const hidden = hiddenCategories || new Set();
+    // 期間の選択肢: プリセット+設定画面で入力した中途半端な値(例: 15年)も残す
+    const periodOptions = [...new Set([10, 20, 30, 40, 50, data.settings.simulationYears])].sort((a, b) => a - b);
     const currentAssets = Model.currentAssets(data);
     const hasHistory = data.history.length > 0;
-    const maxYears = Math.max(
-      data.settings.simulationYears,
-      ...data.goals.map((g) => Math.ceil(Model.monthsUntil(g.targetDate) / 12)),
-      1
-    );
+    const maxYears = Math.max(1, data.settings.simulationYears);
     const series = Model.projectionSeries(data, maxYears).map((p) => ({ x: p.year, y: p.value }));
     const fvAtHorizon = series.length ? series[series.length - 1].y : 0;
     const onTrackCount = data.goals.filter((g) => Model.goalStatus(g, data).onTrack).length;
-    const hasTotalGoals = data.goals.some((g) => Model.isTotalGoal(g));
-    const hasCategoryGoals = data.goals.some((g) => !Model.isTotalGoal(g));
+    const inHorizon = (g) => Model.monthsUntil(g.targetDate) <= maxYears * 12;
+    const hasTotalGoals = data.goals.some((g) => Model.isTotalGoal(g) && inHorizon(g));
+    const hasCategoryGoals = data.goals.some((g) => !Model.isTotalGoal(g) && inHorizon(g));
 
     let setupNotice = "";
     if (!hasHistory) {
@@ -109,6 +108,16 @@ const Views = (() => {
         ${peopleSplitHtml}
       </div>
 
+      <div class="card">
+        <div class="chart-header" style="margin-bottom:0;">
+          <h2>シミュレーション期間</h2>
+          <div class="segmented">
+            ${periodOptions.map((y) => `
+            <button type="button" class="seg-btn ${y === data.settings.simulationYears ? "active" : ""}" data-action="set-sim-years" data-years="${y}">${y}年</button>`).join("")}
+          </div>
+        </div>
+      </div>
+
       <div class="stat-grid">
         <div class="stat">
           <div class="label">${maxYears}年後の予測資産</div>
@@ -165,11 +174,7 @@ const Views = (() => {
     if (!canvas) return;
     const chartMode = data.settings.partnerEnabled ? (categoryChartMode || "combined") : "combined";
     const hidden = hiddenCategories || new Set();
-    const maxYears = Math.max(
-      data.settings.simulationYears,
-      ...data.goals.map((g) => Math.ceil(Model.monthsUntil(g.targetDate) / 12)),
-      1
-    );
+    const maxYears = Math.max(1, data.settings.simulationYears);
     const byKey = Model.categorySeriesByKey(data, maxYears, chartMode);
     const lines = Categories.LIST.filter((c) => !hidden.has(c.key)).map((c) => ({
       color: c.color,
@@ -177,7 +182,7 @@ const Views = (() => {
       points: byKey[c.key].map((p) => ({ x: p.year, y: p.value }))
     }));
     const categoryGoals = chartMode === "combined"
-      ? data.goals.filter((g) => !Model.isTotalGoal(g))
+      ? data.goals.filter((g) => !Model.isTotalGoal(g) && Model.monthsUntil(g.targetDate) <= maxYears * 12)
       : [];
     const goals = categoryGoals.map((g) => {
       const st = Model.goalStatus(g, data);
@@ -196,11 +201,7 @@ const Views = (() => {
   function drawHomeChart(data) {
     const canvas = document.getElementById("home-chart");
     if (!canvas) return;
-    const maxYears = Math.max(
-      data.settings.simulationYears,
-      ...data.goals.map((g) => Math.ceil(Model.monthsUntil(g.targetDate) / 12)),
-      1
-    );
+    const maxYears = Math.max(1, data.settings.simulationYears);
     const series = Model.projectionSeries(data, maxYears).map((p) => ({ x: p.year, y: p.value }));
 
     const nowYear = Sim.currentYear();
@@ -210,7 +211,7 @@ const Views = (() => {
       return { x: yearFrac, y: Categories.total(combinedBreakdown(h, data.settings.partnerEnabled)) };
     });
 
-    const totalGoals = data.goals.filter((g) => Model.isTotalGoal(g));
+    const totalGoals = data.goals.filter((g) => Model.isTotalGoal(g) && Model.monthsUntil(g.targetDate) <= maxYears * 12);
     const goals = totalGoals.map((g) => {
       const st = Model.goalStatus(g, data);
       return { x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack };

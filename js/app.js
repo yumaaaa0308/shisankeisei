@@ -121,6 +121,17 @@
         Views.drawCategoryChart(data, categoryChartMode, hiddenCategories);
         break;
       }
+      case "set-sim-years": {
+        const years = parseInt(actionEl.dataset.years, 10);
+        if (!years || years === data.settings.simulationYears) break;
+        data.settings.simulationYears = years;
+        const scrollY = window.scrollY;
+        const ok = persist();
+        render();
+        window.scrollTo(0, scrollY);
+        if (!ok) showToast("保存に失敗しました(端末の空き容量やプライベートブラウズ設定をご確認ください)");
+        break;
+      }
       case "toggle-category-line": {
         const key = actionEl.dataset.category;
         if (hiddenCategories.has(key)) hiddenCategories.delete(key);
