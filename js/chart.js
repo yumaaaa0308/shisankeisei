@@ -23,9 +23,13 @@ const MiniChart = (() => {
     return v.toLocaleString("ja-JP", { maximumFractionDigits: 1 }) + "万円";
   }
 
-  function yearLabel(y) {
-    if (y === 0) return "今";
-    return y > 0 ? y + "年後" : Math.abs(y) + "年前";
+  // x(今からの経過年数)を西暦で表す。整数年は「2029年」、端数(実績の記録月など)は「2026年5月」
+  function yearLabel(x) {
+    const now = new Date();
+    const total = now.getFullYear() * 12 + now.getMonth() + Math.round(x * 12);
+    const year = Math.floor(total / 12);
+    if (Math.abs(x - Math.round(x)) < 0.02) return year + "年";
+    return `${year}年${(total % 12) + 1}月`;
   }
 
   function setupCanvas(canvas) {
@@ -95,7 +99,11 @@ const MiniChart = (() => {
     const xTicks = [xMin, Math.round((xMin + xMax) / 2), xMax];
     ctx.textAlign = "center";
     xTicks.forEach((xv) => {
-      ctx.fillText(yearLabel(Math.round(xv)), xToPx(xv), height - 6);
+      const label = yearLabel(Math.round(xv));
+      // 端の目盛りがキャンバスからはみ出さないように位置を内側に寄せる
+      const half = ctx.measureText(label).width / 2;
+      const cx = Math.max(half + 2, Math.min(cssWidth - half - 2, xToPx(xv)));
+      ctx.fillText(label, cx, height - 6);
     });
     ctx.textAlign = "left";
 

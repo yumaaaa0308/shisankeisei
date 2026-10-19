@@ -204,12 +204,12 @@ const Views = (() => {
         return {
           x: st.yearsFromNow, y: ps.share, onTrack: ps.onTrack,
           name: `${g.name}(${data.people[chartMode].name}の負担)`,
-          timeLabel: Fmt.countdownLabel(st.monthsFromNow), projected: ps.projected, color
+          timeLabel: Fmt.yearMonthJp(g.targetDate), projected: ps.projected, color
         };
       }
       return {
         x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack,
-        name: g.name, timeLabel: Fmt.countdownLabel(st.monthsFromNow), projected: st.projected, color
+        name: g.name, timeLabel: Fmt.yearMonthJp(g.targetDate), projected: st.projected, color
       };
     });
     MiniChart.drawMultiLine(canvas, { lines, goals });
@@ -233,7 +233,7 @@ const Views = (() => {
       const st = Model.goalStatus(g, data);
       return {
         x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack,
-        name: g.name, timeLabel: Fmt.countdownLabel(st.monthsFromNow), projected: st.projected, color: "#5b8def"
+        name: g.name, timeLabel: Fmt.yearMonthJp(g.targetDate), projected: st.projected, color: "#5b8def"
       };
     });
 
