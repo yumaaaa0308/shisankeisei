@@ -158,7 +158,7 @@ const Views = (() => {
           <button type="button" class="legend-item legend-toggle ${hidden.has(c.key) ? "legend-off" : ""}" data-action="toggle-category-line" data-category="${c.key}">
             <span class="legend-dot" style="background:${c.color}"></span>${c.label}
           </button>`).join("")}
-          ${hasCategoryGoals && chartMode === "combined" ? `
+          ${categoryChartGoals(data, chartMode).length ? `
           <span class="legend-item"><span class="legend-dot" style="background:#22d3ee"></span>目標(達成見込み)</span>
           <span class="legend-item"><span class="legend-dot" style="background:#f87171"></span>目標(不足)</span>` : ""}
         </div>
@@ -168,6 +168,17 @@ const Views = (() => {
       <div class="section-title">目標の達成状況</div>
       <div class="list">${goalRows}</div>` : ""}
     `;
+  }
+
+  // カテゴリ別グラフに出す目標。合計: 資金源をカテゴリ指定した目標、個人: その人の負担額を設定した目標
+  function categoryChartGoals(data, chartMode) {
+    const maxYears = Math.max(1, data.settings.simulationYears);
+    const inHorizon = (g) => Model.monthsUntil(g.targetDate) <= maxYears * 12;
+    if (chartMode === "combined") return data.goals.filter((g) => !Model.isTotalGoal(g) && inHorizon(g));
+    return data.goals.filter((g) => {
+      const shares = Model.goalShares(g, data);
+      return shares && shares[chartMode] > 0 && inHorizon(g);
+    });
   }
 
   function drawCategoryChart(data, categoryChartMode, hiddenCategories) {
@@ -182,14 +193,20 @@ const Views = (() => {
       label: c.label,
       points: byKey[c.key].map((p) => ({ x: p.year, y: p.value }))
     }));
-    const categoryGoals = chartMode === "combined"
-      ? data.goals.filter((g) => !Model.isTotalGoal(g) && Model.monthsUntil(g.targetDate) <= maxYears * 12)
-      : [];
-    const goals = categoryGoals.map((g) => {
+    const goals = categoryChartGoals(data, chartMode).map((g) => {
       const st = Model.goalStatus(g, data);
       const sources = Model.goalSources(g);
       // 資金源が1つならそのカテゴリ色、複数なら合算値なので中立色
       const color = sources.length === 1 ? Categories.find(sources[0]).color : "#eef2ff";
+      if (chartMode !== "combined") {
+        // 個人別表示: その人の負担額をマーカーにし、その人の予測で達成判定する
+        const ps = Model.goalPersonStatus(g, data)[chartMode];
+        return {
+          x: st.yearsFromNow, y: ps.share, onTrack: ps.onTrack,
+          name: `${g.name}(${data.people[chartMode].name}の負担)`,
+          timeLabel: Fmt.countdownLabel(st.monthsFromNow), projected: ps.projected, color
+        };
+      }
       return {
         x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack,
         name: g.name, timeLabel: Fmt.countdownLabel(st.monthsFromNow), projected: st.projected, color
