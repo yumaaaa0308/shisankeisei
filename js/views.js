@@ -196,6 +196,10 @@ const Views = (() => {
     const goals = categoryChartGoals(data, chartMode).map((g) => {
       const st = Model.goalStatus(g, data);
       const sources = Model.goalSources(g);
+      // 目標にカーソルを合わせたとき、その月の各カテゴリの残高(目標の支出後)も吹き出しに出す
+      const atMonth = Model.categoryValuesAtMonth(data, st.monthsFromNow, chartMode);
+      const extra = Categories.LIST.filter((c) => !hidden.has(c.key))
+        .map((c) => ({ color: c.color, label: c.label, y: atMonth[c.key] }));
       // 資金源が1つならそのカテゴリ色、複数なら合算値なので中立色
       const color = sources.length === 1 ? Categories.find(sources[0]).color : "#eef2ff";
       if (chartMode !== "combined") {
@@ -204,12 +208,12 @@ const Views = (() => {
         return {
           x: st.yearsFromNow, y: ps.share, onTrack: ps.onTrack,
           name: `${g.name}(${data.people[chartMode].name}の負担)`,
-          timeLabel: Fmt.yearMonthJp(g.targetDate), projected: ps.projected, color
+          timeLabel: Fmt.yearMonthJp(g.targetDate), projected: ps.projected, color, extra
         };
       }
       return {
         x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack,
-        name: g.name, timeLabel: Fmt.yearMonthJp(g.targetDate), projected: st.projected, color
+        name: g.name, timeLabel: Fmt.yearMonthJp(g.targetDate), projected: st.projected, color, extra
       };
     });
     MiniChart.drawMultiLine(canvas, { lines, goals });

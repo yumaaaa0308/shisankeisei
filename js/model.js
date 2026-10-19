@@ -178,6 +178,14 @@ const Model = (() => {
     return result;
   }
 
+  // 指定した月(今からの経過月数)時点のカテゴリごとの残高。その月の目標の支出は反映済み
+  function categoryValuesAtMonth(data, months, who = "combined") {
+    const balances = categoryBalancesSeries(data, months, who, null);
+    const result = {};
+    Categories.LIST.forEach((c) => (result[c.key] = balances[c.key][months]));
+    return result;
+  }
+
   function goalStatus(goal, data) {
     const totalMonths = monthsUntil(goal.targetDate);
     const yearsFromNow = totalMonths / 12;
@@ -207,6 +215,7 @@ const Model = (() => {
   }
 
   return {
+    categoryValuesAtMonth,
     goalShares,
     goalPersonStatus,
     latestHistoryEntry,

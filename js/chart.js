@@ -270,18 +270,26 @@ const MiniChart = (() => {
   }
 
   // 目標にカーソルが合ったときの吹き出し(目標日の予測額と目標額)
+  // g.extra: [{color,label,y}] があれば、その月の各カテゴリの残高(目標の支出後)も続けて表示する
   function goalTooltipLines(g) {
-    return [
+    const lines = [
       { text: g.timeLabel },
       { text: g.name },
       { color: g.color, text: "予測 " + manLabelPrecise(g.projected) },
       { color: g.onTrack ? COLORS.goalOnTrack : COLORS.goalOff, text: "目標 " + manLabelPrecise(g.y) }
     ];
+    if (g.extra && g.extra.length) {
+      lines.push({ text: "― この月の各資産(支出後) ―" });
+      g.extra.forEach((e) => lines.push({ color: e.color, text: `${e.label} ${manLabelPrecise(e.y)}` }));
+    }
+    return lines;
   }
 
   function drawGoalCursor(ctx, cssWidth, scale, g) {
     drawCrosshair(ctx, scale, g.x);
-    drawDots(ctx, scale, [{ x: g.x, y: g.projected, color: g.color }]);
+    const dots = (g.extra || []).map((e) => ({ x: g.x, y: e.y, color: e.color }));
+    dots.push({ x: g.x, y: g.projected, color: g.color });
+    drawDots(ctx, scale, dots);
     drawTooltip(ctx, cssWidth, scale, g.x, goalTooltipLines(g));
   }
 
