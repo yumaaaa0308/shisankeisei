@@ -186,16 +186,15 @@ const Views = (() => {
       : [];
     const goals = categoryGoals.map((g) => {
       const st = Model.goalStatus(g, data);
-      return { x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack };
-    });
-    const projectionMarkers = categoryGoals.map((g) => {
-      const st = Model.goalStatus(g, data);
       const sources = Model.goalSources(g);
       // 資金源が1つならそのカテゴリ色、複数なら合算値なので中立色
       const color = sources.length === 1 ? Categories.find(sources[0]).color : "#eef2ff";
-      return { x: st.yearsFromNow, y: st.projected, color, label: Fmt.man(st.projected) };
+      return {
+        x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack,
+        name: g.name, timeLabel: Fmt.countdownLabel(st.monthsFromNow), projected: st.projected, color
+      };
     });
-    MiniChart.drawMultiLine(canvas, { lines, goals, projectionMarkers });
+    MiniChart.drawMultiLine(canvas, { lines, goals });
   }
 
   function drawHomeChart(data) {
@@ -214,14 +213,13 @@ const Views = (() => {
     const totalGoals = data.goals.filter((g) => Model.isTotalGoal(g) && Model.monthsUntil(g.targetDate) <= maxYears * 12);
     const goals = totalGoals.map((g) => {
       const st = Model.goalStatus(g, data);
-      return { x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack };
-    });
-    const projectionMarkers = totalGoals.map((g) => {
-      const st = Model.goalStatus(g, data);
-      return { x: st.yearsFromNow, y: st.projected, color: "#5b8def", label: Fmt.man(st.projected) };
+      return {
+        x: st.yearsFromNow, y: g.targetAmount, onTrack: st.onTrack,
+        name: g.name, timeLabel: Fmt.countdownLabel(st.monthsFromNow), projected: st.projected, color: "#5b8def"
+      };
     });
 
-    MiniChart.draw(canvas, { series, history, goals, projectionMarkers });
+    MiniChart.draw(canvas, { series, history, goals });
   }
 
   function yearMonthOf(iso) {

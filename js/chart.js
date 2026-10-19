@@ -168,32 +168,6 @@ const MiniChart = (() => {
     });
   }
 
-  // markers: [{x,y,color,label}] 目標の時点で実際の予測額がいくらになるかを、常時見える点+ラベルで示す
-  function drawValueMarkers(ctx, cssWidth, scale, markers) {
-    markers.forEach((m) => {
-      const px = scale.xToPx(m.x), py = scale.yToPx(m.y);
-
-      ctx.fillStyle = m.color;
-      ctx.beginPath();
-      ctx.arc(px, py, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#0b1120";
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
-
-      ctx.font = "10px -apple-system, sans-serif";
-      const textW = ctx.measureText(m.label).width;
-      let tx = px - textW / 2;
-      tx = Math.max(2, Math.min(cssWidth - textW - 2, tx));
-      const ty = Math.max(scale.padT + 10, py - 8);
-
-      ctx.fillStyle = "rgba(11, 17, 32, 0.85)";
-      ctx.fillRect(tx - 3, ty - 10, textW + 6, 13);
-      ctx.fillStyle = m.color;
-      ctx.fillText(m.label, tx, ty);
-    });
-  }
-
   // points: [{x,y}] ラインの各データ点(1年ごと)に小さな丸印を打つ
   function drawLinePoints(ctx, scale, points, color) {
     ctx.fillStyle = color;
@@ -256,22 +230,49 @@ const MiniChart = (() => {
     });
   }
 
-  // canvas上でのポインタ位置から、最も近い整数年を返す
-  function yearFromEvent(evt, canvas, scale) {
+  // canvas上でのポインタ位置を、グラフのx値(年, 小数あり)で返す。
+  // どの点に吸着するか(各年/目標の月)は、描画側で最も近いものを選ぶ。
+  function xFromEvent(evt, canvas, scale) {
     const rect = canvas.getBoundingClientRect();
     const clientX = evt.clientX;
     const xCss = ((clientX - rect.left) / rect.width) * (canvas.width / (window.devicePixelRatio || 1));
     const dataX = scale.xMin + ((xCss - scale.padL) / scale.plotW) * (scale.xMax - scale.xMin);
-    const clamped = Math.max(scale.xMin, Math.min(scale.xMax, dataX));
-    return Math.round(clamped);
+    return Math.max(scale.xMin, Math.min(scale.xMax, dataX));
   }
 
-  // repaint(year|null) を呼ぶポインタイベントを1つのcanvasに1回だけ登録する
+  // 最も近い目標とその距離。目標がなければnull
+  function nearestGoal(goals, x) {
+    let best = null;
+    let bestDist = Infinity;
+    goals.forEach((g) => {
+      const d = Math.abs(g.x - x);
+      if (d < bestDist) { best = g; bestDist = d; }
+    });
+    return best ? { goal: best, dist: bestDist } : null;
+  }
+
+  // 目標にカーソルが合ったときの吹き出し(目標日の予測額と目標額)
+  function goalTooltipLines(g) {
+    return [
+      { text: g.timeLabel },
+      { text: g.name },
+      { color: g.color, text: "予測 " + manLabelPrecise(g.projected) },
+      { color: g.onTrack ? COLORS.goalOnTrack : COLORS.goalOff, text: "目標 " + manLabelPrecise(g.y) }
+    ];
+  }
+
+  function drawGoalCursor(ctx, cssWidth, scale, g) {
+    drawCrosshair(ctx, scale, g.x);
+    drawDots(ctx, scale, [{ x: g.x, y: g.projected, color: g.color }]);
+    drawTooltip(ctx, cssWidth, scale, g.x, goalTooltipLines(g));
+  }
+
+  // repaint(x|null) を呼ぶポインタイベントを1つのcanvasに1回だけ登録する
   function attachInteraction(canvas, scale, repaint) {
     let dragging = false;
     const handleMove = (evt) => {
-      const year = yearFromEvent(evt, canvas, scale);
-      repaint(year);
+      const x = xFromEvent(evt, canvas, scale);
+      repaint(x);
       if (evt.cancelable) evt.preventDefault();
     };
     canvas.addEventListener("pointerdown", (evt) => {
@@ -300,9 +301,8 @@ const MiniChart = (() => {
 
   // series: [{x:number, y:number}] sorted by x ascending (required)
   // history: [{x:number, y:number}] optional, actual recorded points
-  // goals: [{x:number, y:number, label:string, onTrack:boolean}] optional
-  // projectionMarkers: [{x,y,color,label}] 目標時点の実際の予測額を常時表示する点
-  function draw(canvas, { series, history = [], goals = [], projectionMarkers = [] }) {
+  // goals: [{x, y(目標額), onTrack, name, timeLabel, projected(目標日の予測額), color}] optional
+  function draw(canvas, { series, history = [], goals = [] }) {
     const { ctx, cssWidth, height } = setupCanvas(canvas);
     const allX = series.map((p) => p.x).concat(history.map((p) => p.x)).concat(goals.map((p) => p.x));
     const allY = series.map((p) => p.y).concat(history.map((p) => p.y)).concat(goals.map((p) => p.y));
@@ -353,14 +353,15 @@ const MiniChart = (() => {
       drawGoalMarkers(ctx, scale, goals);
 
       if (selectedYear !== null) {
-        const nearMarkers = projectionMarkers.filter((m) => Math.abs(m.x - selectedYear) <= 0.75);
-        drawValueMarkers(ctx, cssWidth, scale, nearMarkers);
-
         const seriesPoint = nearestPoint(series, selectedYear);
         const histPoint = nearestPoint(history, selectedYear);
         const useHist = histPoint && (!seriesPoint || Math.abs(histPoint.x - selectedYear) < Math.abs(seriesPoint.x - selectedYear));
         const picked = useHist ? histPoint : seriesPoint;
-        if (picked) {
+        const pickedDist = picked ? Math.abs(picked.x - selectedYear) : Infinity;
+        const ng = nearestGoal(goals, selectedYear);
+        if (ng && ng.dist <= pickedDist) {
+          drawGoalCursor(ctx, cssWidth, scale, ng.goal);
+        } else if (picked) {
           drawCrosshair(ctx, scale, picked.x);
           drawDots(ctx, scale, [{ x: picked.x, y: picked.y, color: useHist ? COLORS.history : COLORS.projection }]);
           drawTooltip(ctx, cssWidth, scale, picked.x, [
@@ -377,9 +378,8 @@ const MiniChart = (() => {
 
   // カテゴリ別の複数ラインを重ねて描画する(合計ラインは表示しない)
   // lines: [{ color, label, points: [{x,y}] }]
-  // goals: [{x,y,onTrack}] 資金源がカテゴリ指定の目標マーカー
-  // projectionMarkers: [{x,y,color,label}] 目標時点の実際の予測額を常時表示する点
-  function drawMultiLine(canvas, { lines, goals = [], projectionMarkers = [] }) {
+  // goals: [{x, y(目標額), onTrack, name, timeLabel, projected, color}] 資金源がカテゴリ指定の目標
+  function drawMultiLine(canvas, { lines, goals = [] }) {
     const { ctx, cssWidth, height } = setupCanvas(canvas);
     const allPoints = lines.flatMap((l) => l.points).concat(goals);
     if (allPoints.length === 0) return;
@@ -405,13 +405,14 @@ const MiniChart = (() => {
       drawGoalMarkers(ctx, scale, goals);
 
       if (selectedYear !== null) {
-        const nearMarkers = projectionMarkers.filter((m) => Math.abs(m.x - selectedYear) <= 0.75);
-        drawValueMarkers(ctx, cssWidth, scale, nearMarkers);
-
         const picks = lines
           .map((line) => ({ line, point: nearestPoint(line.points, selectedYear) }))
           .filter((p) => p.point);
-        if (picks.length) {
+        const pickedDist = picks.length ? Math.abs(picks[0].point.x - selectedYear) : Infinity;
+        const ng = nearestGoal(goals, selectedYear);
+        if (ng && ng.dist <= pickedDist) {
+          drawGoalCursor(ctx, cssWidth, scale, ng.goal);
+        } else if (picks.length) {
           const x = picks[0].point.x;
           drawCrosshair(ctx, scale, x);
           drawDots(ctx, scale, picks.map((p) => ({ x: p.point.x, y: p.point.y, color: p.line.color })));
