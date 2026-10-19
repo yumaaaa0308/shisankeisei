@@ -389,8 +389,20 @@
 
   // Service Worker登録(オフライン対応)
   if ("serviceWorker" in navigator) {
+    // 新しいService Workerが有効になったら、最新のファイルで動くよう1回だけ再読み込みする。
+    // 初回インストール(それまで制御するSWがない)の場合は再読み込みしない。
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!hadController || reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    });
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("sw.js").catch(() => {});
+      navigator.serviceWorker
+        .register("sw.js", { updateViaCache: "none" })
+        .then((reg) => reg.update())
+        .catch(() => {});
     });
   }
 

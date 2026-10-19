@@ -1,4 +1,4 @@
-const CACHE_NAME = "asset-plan-cache-v1";
+const CACHE_NAME = "asset-plan-cache-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -15,9 +15,16 @@ const ASSETS = [
   "./icons/apple-touch-icon.png"
 ];
 
+// GitHub Pagesは各ファイルに10分のCache-Controlを付けるため、普通のfetchだと
+// ブラウザのHTTPキャッシュ経由で古いファイルが返り、デプロイ後も更新が反映されない。
+// cache:"no-cache"で毎回サーバーに更新確認(変更がなければ304で軽量)する。
+const fresh = (request) => fetch(request, { cache: "no-cache" });
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(ASSETS.map((url) => fresh(url).then((res) => cache.put(url, res))))
+    )
   );
   self.skipWaiting();
 });
@@ -34,7 +41,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   event.respondWith(
-    fetch(event.request)
+    fresh(event.request)
       .then((response) => {
         if (response && response.status === 200) {
           const clone = response.clone();
