@@ -254,7 +254,8 @@ const Views = (() => {
             <div class="li-main">
               <div class="li-title">${escapeHtml(g.name)}</div>
               <div class="li-sub">${Fmt.yearMonthJp(g.targetDate)}・目標 ${Fmt.man(g.targetAmount)}・資金源: ${fundingSourceLabel(g)}${g.note ? " ・ " + escapeHtml(g.note) : ""}</div>
-              <div class="li-sub">予測: ${Fmt.man(st.projected)} ${badge}</div>
+              <div class="li-sub">世帯の予測: ${Fmt.man(st.projected)} ${badge}</div>
+              ${goalPersonLines(g, data)}
             </div>
             <div class="li-actions">
               <button class="btn-icon" data-action="edit-goal" data-id="${g.id}">✎</button>
@@ -277,7 +278,25 @@ const Views = (() => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   }
 
-  function goalFormModal(goal) {
+  // 目標の個人別の達成状況(負担額を設定した目標のみ)
+  function goalPersonLines(g, data) {
+    const ps = Model.goalPersonStatus(g, data);
+    if (!ps) return "";
+    const line = (who) => {
+      const p = ps[who];
+      const badge = p.onTrack
+        ? `<span class="badge good">達成見込み +${Fmt.man(p.diff)}</span>`
+        : `<span class="badge bad">不足 ${Fmt.man(p.diff)}</span>`;
+      return `<div class="li-sub">${escapeHtml(data.people[who].name)}: 負担 ${Fmt.man(p.share)} / 予測 ${Fmt.man(p.projected)} ${badge}</div>`;
+    };
+    const gap = ps.sharesTotal - g.targetAmount;
+    const gapNote = gap !== 0
+      ? `<div class="li-sub">※負担額の合計が目標より ${Fmt.man(Math.abs(gap))} ${gap > 0 ? "多い" : "少ない"}です</div>`
+      : "";
+    return line("self") + line("partner") + gapNote;
+  }
+
+  function goalFormModal(goal, data) {
     const isEdit = !!goal;
     const g = goal || { name: "", targetAmount: 0, targetDate: defaultTargetDate(), note: "", fundingSources: [] };
     const selected = Model.goalSources(g);
@@ -288,6 +307,20 @@ const Views = (() => {
                   <span class="legend-dot" style="background:${c.color}"></span>${c.label}
                 </label>`
     ).join("");
+    const shareVal = (who) => (g.shares ? Fmt.manInputValue(g.shares[who]) : "");
+    const sharesField = data && data.settings.partnerEnabled
+      ? `
+            <div class="field">
+              <label>それぞれの負担額(万円・任意)</label>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <span class="hint" style="margin:0;white-space:nowrap;">${escapeHtml(data.people.self.name)}</span>
+                <input type="text" inputmode="decimal" class="comma-input" name="shareSelfMan" value="${shareVal("self")}" placeholder="0">
+                <span class="hint" style="margin:0;white-space:nowrap;">${escapeHtml(data.people.partner.name)}</span>
+                <input type="text" inputmode="decimal" class="comma-input" name="sharePartnerMan" value="${shareVal("partner")}" placeholder="0">
+              </div>
+              <div class="hint" id="shares-hint">それぞれがいくら用意するかを入力すると、人ごとに達成できそうかを確認できます。どちらも空欄なら世帯合計のみで判定します。</div>
+            </div>`
+      : "";
     return `
       <div class="modal-backdrop" data-action="close-modal">
         <div class="modal-sheet" data-action="noop">
@@ -310,6 +343,7 @@ const Views = (() => {
               <div class="check-group">${fundingOptions}</div>
               <div class="hint">どの資産で用意するか。複数選ぶと、選んだ資産の合計から残高比で支出します。未選択の場合は全体(すべての資産合計)から支出します。</div>
             </div>
+            ${sharesField}
             <div class="field">
               <label>メモ(任意)</label>
               <input type="text" name="note" value="${escapeAttr(g.note || "")}" placeholder="例: 車の買い替え">

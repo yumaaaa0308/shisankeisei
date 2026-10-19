@@ -78,10 +78,30 @@ const Model = (() => {
       .map((g) => ({ month: monthsUntil(g.targetDate), amount: g.targetAmount, sources: goalSources(g) }));
   }
 
+  // 目標の個人負担額。負担額を設定していない目標、パートナー管理OFFのときはnull
+  function goalShares(goal, data) {
+    if (!goal.shares || !data.settings.partnerEnabled) return null;
+    return { self: goal.shares.self || 0, partner: goal.shares.partner || 0 };
+  }
+
+  // 個人の資産から差し引く、他の目標の個人負担分(資金源が「全体」の目標は全カテゴリから按分)
+  function personWithdrawals(data, who, excludeGoalId) {
+    const allKeys = Categories.LIST.map((c) => c.key);
+    return data.goals
+      .filter((g) => g.id !== excludeGoalId && goalShares(g, data))
+      .map((g) => ({
+        month: monthsUntil(g.targetDate),
+        amount: goalShares(g, data)[who],
+        sources: isTotalGoal(g) ? allKeys : goalSources(g)
+      }));
+  }
+
   // カテゴリごとの月次残高: { nisa: [値0..totalMonths], dc: [...], ... }
   // カテゴリを資金源に指定した目標は、目標日にその金額を指定カテゴリの合算プールから
   // 残高比で按分して差し引く(who==="combined"のときのみ)
-  function categoryBalancesSeries(data, totalMonths, who = "combined", excludeGoalId) {
+  // 個人(self/partner)の月次残高では、withShares=trueのとき、負担額を設定した他の目標の
+  // 個人負担分をその人の資産から差し引く(目標ごとの個人別の達成判定用)
+  function categoryBalancesSeries(data, totalMonths, who = "combined", excludeGoalId, withShares = false) {
     const principals = categoryPrincipals(data, who);
     const monthly = categoryMonthly(data, who);
     const bonus = categoryBonus(data, who);
@@ -92,7 +112,9 @@ const Model = (() => {
       bonus: bonus[c.key],
       ratePercent: data.settings.categoryRates[c.key] || 0
     }));
-    const withdrawals = who === "combined" ? goalsAsWithdrawals(data, excludeGoalId) : [];
+    let withdrawals = [];
+    if (who === "combined") withdrawals = goalsAsWithdrawals(data, excludeGoalId);
+    else if (withShares) withdrawals = personWithdrawals(data, who, excludeGoalId);
     return Sim.simulateJoint(categories, totalMonths, withdrawals);
   }
 
@@ -166,7 +188,27 @@ const Model = (() => {
     return { yearsFromNow, monthsFromNow: totalMonths, projected, diff, onTrack: diff >= 0 };
   }
 
+  // 個人ごとの達成見込み。負担額が未設定ならnull。
+  // 予測=その人の資金源カテゴリの資産(他の目標の個人負担分は差し引き済み)が目標日にいくらになるか
+  function goalPersonStatus(goal, data) {
+    const shares = goalShares(goal, data);
+    if (!shares) return null;
+    const totalMonths = monthsUntil(goal.targetDate);
+    const keys = isTotalGoal(goal) ? Categories.LIST.map((c) => c.key) : goalSources(goal);
+    const result = {};
+    ["self", "partner"].forEach((who) => {
+      const balances = categoryBalancesSeries(data, totalMonths, who, goal.id, true);
+      const projected = keys.reduce((sum, k) => sum + balances[k][totalMonths], 0);
+      const share = shares[who];
+      result[who] = { share, projected, diff: projected - share, onTrack: projected - share >= 0 };
+    });
+    result.sharesTotal = shares.self + shares.partner;
+    return result;
+  }
+
   return {
+    goalShares,
+    goalPersonStatus,
     latestHistoryEntry,
     categoryPrincipals,
     categoryMonthly,

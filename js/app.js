@@ -88,11 +88,11 @@
         closeModal();
         break;
       case "add-goal":
-        openModal(Views.goalFormModal(null));
+        openModal(Views.goalFormModal(null, data));
         break;
       case "edit-goal": {
         const goal = data.goals.find((g) => g.id === actionEl.dataset.id);
-        openModal(Views.goalFormModal(goal));
+        openModal(Views.goalFormModal(goal, data));
         break;
       }
       case "delete-goal": {
@@ -271,6 +271,23 @@
     e.target.value = e.target.value.trim() === "" ? "" : Fmt.manInputValue(num * 10000);
   });
 
+  // 目標フォームで、目標金額と負担額の合計の差をその場で表示する
+  document.addEventListener("input", (e) => {
+    const form = e.target.closest && e.target.closest("#goal-form");
+    const hint = document.getElementById("shares-hint");
+    if (!form || !hint || !/^(shareSelfMan|sharePartnerMan|targetAmountMan)$/.test(e.target.name || "")) return;
+    const val = (name) => Math.round(Fmt.parseCommaNum(form.elements[name].value) * 10000);
+    const total = val("shareSelfMan") + val("sharePartnerMan");
+    if (form.elements.shareSelfMan.value.trim() === "" && form.elements.sharePartnerMan.value.trim() === "") {
+      hint.textContent = "それぞれがいくら用意するかを入力すると、人ごとに達成できそうかを確認できます。どちらも空欄なら世帯合計のみで判定します。";
+      return;
+    }
+    const gap = total - val("targetAmountMan");
+    hint.textContent = gap === 0
+      ? `負担額の合計 ${Fmt.man(total)}(目標と一致)`
+      : `負担額の合計 ${Fmt.man(total)}(目標より ${Fmt.man(Math.abs(gap))} ${gap > 0 ? "多い" : "少ない"})`;
+  });
+
   // ---- バックアップファイルの読み込み ----
   document.addEventListener("change", (e) => {
     if (e.target.id !== "import-file-input") return;
@@ -312,8 +329,22 @@
         targetAmount: Math.round(Fmt.parseCommaNum(fd.get("targetAmountMan")) * 10000),
         targetDate: String(fd.get("targetDate") || ""),
         fundingSources: fd.getAll("fundingSources").map(String),
-        note: String(fd.get("note") || "").trim()
+        note: String(fd.get("note") || "").trim(),
+        shares: null
       };
+      // 個人の負担額: どちらも空欄なら未設定(世帯合計のみで判定)
+      const shareSelf = fd.get("shareSelfMan");
+      const sharePartner = fd.get("sharePartnerMan");
+      if (shareSelf !== null && (String(shareSelf).trim() !== "" || String(sharePartner).trim() !== "")) {
+        goal.shares = {
+          self: Math.max(0, Math.round(Fmt.parseCommaNum(shareSelf) * 10000)),
+          partner: Math.max(0, Math.round(Fmt.parseCommaNum(sharePartner) * 10000))
+        };
+      } else {
+        const prev = data.goals.find((g) => g.id === id);
+        // パートナー管理OFFで編集した場合は、以前の負担額を消さずに保持する
+        if (shareSelf === null && prev) goal.shares = prev.shares || null;
+      }
       if (!goal.name || isNaN(goal.targetAmount) || !goal.targetDate) return;
       const idx = data.goals.findIndex((g) => g.id === id);
       if (idx >= 0) data.goals[idx] = goal;

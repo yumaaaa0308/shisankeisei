@@ -46,7 +46,8 @@ const Storage = (() => {
       // history entry: { id, date: 'YYYY-MM-DD', self: {nisa,dc,cash,reserve,stock}(円), partner: {同上} }
       history: [],
       // goal: { id, name, targetAmount(円), targetDate('YYYY-MM'), note,
-      //   fundingSources: カテゴリキーの配列(複数可)。空配列は「全体(合計)」 }
+      //   fundingSources: カテゴリキーの配列(複数可)。空配列は「全体(合計)」,
+      //   shares: { self, partner }(円) 個人の負担額。未設定はnull }
       goals: []
     };
   }
@@ -63,13 +64,18 @@ const Storage = (() => {
     if (Array.isArray(goal.fundingSources)) sources = goal.fundingSources;
     else if (goal.fundingSource && goal.fundingSource !== "total") sources = [goal.fundingSource];
     sources = Categories.LIST.map((c) => c.key).filter((k) => sources.includes(k));
+    // 個人負担額(円)。未設定はnull
+    const shares = goal.shares
+      ? { self: Math.max(0, Number(goal.shares.self) || 0), partner: Math.max(0, Number(goal.shares.partner) || 0) }
+      : null;
     return {
       id: goal.id,
       name: goal.name,
       targetAmount: goal.targetAmount,
       targetDate,
       note: goal.note || "",
-      fundingSources: sources
+      fundingSources: sources,
+      shares
     };
   }
 
