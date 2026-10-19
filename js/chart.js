@@ -240,6 +240,16 @@ const MiniChart = (() => {
     return Math.max(scale.xMin, Math.min(scale.xMax, dataX));
   }
 
+  // 目標のマーカーからこのピクセル以内をタップしたら、より近い整数年があっても目標を優先する
+  const GOAL_SNAP_PX = 14;
+
+  // 目標にカーソルを合わせるか。ng: nearestGoalの結果、pickedDist: 最寄りの各年の点までの距離(年)
+  function goalWins(ng, pickedDist, scale) {
+    if (!ng) return false;
+    const pxPerYear = scale.plotW / (scale.xMax - scale.xMin || 1);
+    return ng.dist * pxPerYear <= GOAL_SNAP_PX || ng.dist <= pickedDist;
+  }
+
   // 最も近い目標とその距離。目標がなければnull
   function nearestGoal(goals, x) {
     let best = null;
@@ -359,7 +369,7 @@ const MiniChart = (() => {
         const picked = useHist ? histPoint : seriesPoint;
         const pickedDist = picked ? Math.abs(picked.x - selectedYear) : Infinity;
         const ng = nearestGoal(goals, selectedYear);
-        if (ng && ng.dist <= pickedDist) {
+        if (goalWins(ng, pickedDist, scale)) {
           drawGoalCursor(ctx, cssWidth, scale, ng.goal);
         } else if (picked) {
           drawCrosshair(ctx, scale, picked.x);
@@ -410,7 +420,7 @@ const MiniChart = (() => {
           .filter((p) => p.point);
         const pickedDist = picks.length ? Math.abs(picks[0].point.x - selectedYear) : Infinity;
         const ng = nearestGoal(goals, selectedYear);
-        if (ng && ng.dist <= pickedDist) {
+        if (goalWins(ng, pickedDist, scale)) {
           drawGoalCursor(ctx, cssWidth, scale, ng.goal);
         } else if (picks.length) {
           const x = picks[0].point.x;
