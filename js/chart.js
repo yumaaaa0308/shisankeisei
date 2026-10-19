@@ -91,7 +91,8 @@ const MiniChart = (() => {
       ctx.fillText(manLabel(y), 2, py + 3);
     }
 
-    const xTicks = [xMin, (xMin + xMax) / 2, xMax];
+    // 中間の目盛りは整数年に置く(ラベルと位置がずれないように)
+    const xTicks = [xMin, Math.round((xMin + xMax) / 2), xMax];
     ctx.textAlign = "center";
     xTicks.forEach((xv) => {
       ctx.fillText(yearLabel(Math.round(xv)), xToPx(xv), height - 6);

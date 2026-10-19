@@ -36,7 +36,7 @@ const Views = (() => {
     const chartMode = data.settings.partnerEnabled ? (categoryChartMode || "combined") : "combined";
     const hidden = hiddenCategories || new Set();
     // 期間の選択肢: プリセット+設定画面で入力した中途半端な値(例: 15年)も残す
-    const periodOptions = [...new Set([10, 20, 30, 40, 50, data.settings.simulationYears])].sort((a, b) => a - b);
+    const periodOptions = [...new Set([3, 5, 10, 20, 30, 40, 50, data.settings.simulationYears])].sort((a, b) => a - b);
     const currentAssets = Model.currentAssets(data);
     const hasHistory = data.history.length > 0;
     const maxYears = Math.max(1, data.settings.simulationYears);
