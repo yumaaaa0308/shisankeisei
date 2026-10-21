@@ -112,13 +112,8 @@
       }
       case "set-category-mode": {
         categoryChartMode = actionEl.dataset.mode;
-        const container = actionEl.closest(".segmented");
-        if (container) {
-          container.querySelectorAll(".seg-btn").forEach((btn) => {
-            btn.classList.toggle("active", btn.dataset.mode === categoryChartMode);
-          });
-        }
-        Views.drawCategoryChart(data, categoryChartMode, hiddenCategories);
+        // 凡例や注記(目標・生活防衛費の目標額)も表示する人に合わせて変わるため、画面ごと描き直す
+        render();
         break;
       }
       case "set-sim-years": {
@@ -329,6 +324,7 @@
         targetAmount: Math.round(Fmt.parseCommaNum(fd.get("targetAmountMan")) * 10000),
         targetDate: String(fd.get("targetDate") || ""),
         fundingSources: fd.getAll("fundingSources").map(String),
+        kind: fd.get("kind") === "save" && fd.getAll("fundingSources").length ? "save" : "spend",
         note: String(fd.get("note") || "").trim(),
         shares: null
       };
@@ -404,9 +400,6 @@
       data.people.self.contributions = readContributions("self");
       data.people.partner.name = String(fd.get("partner_name") || "").trim() || "パートナー";
       data.people.partner.contributions = readContributions("partner");
-      const readTarget = (prefix) => Math.max(0, Math.round(Fmt.parseCommaNum(fd.get(`${prefix}_reserveTarget`)) * 10000));
-      data.people.self.reserveTarget = readTarget("self");
-      data.people.partner.reserveTarget = readTarget("partner");
 
       persistAndToast("設定を保存しました");
     }

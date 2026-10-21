@@ -71,10 +71,15 @@ const Model = (() => {
     return goalSources(goal).length === 0;
   }
 
+  // 使わずに貯める目標(資金源あり)。支出(引き出し)としては扱わず、達成後の積立を現金(通常)へ回す
+  function isSaveGoal(goal) {
+    return goal.kind === "save" && goalSources(goal).length > 0;
+  }
+
   // excludeGoalId: 自分自身の目標評価時に除外するID
   function goalsAsWithdrawals(data, excludeGoalId) {
     return data.goals
-      .filter((g) => g.id !== excludeGoalId)
+      .filter((g) => g.id !== excludeGoalId && !isSaveGoal(g))
       .map((g) => ({ month: monthsUntil(g.targetDate), amount: g.targetAmount, sources: goalSources(g) }));
   }
 
@@ -88,7 +93,7 @@ const Model = (() => {
   function personWithdrawals(data, who, excludeGoalId) {
     const allKeys = Categories.LIST.map((c) => c.key);
     return data.goals
-      .filter((g) => g.id !== excludeGoalId && goalShares(g, data))
+      .filter((g) => g.id !== excludeGoalId && !isSaveGoal(g) && goalShares(g, data))
       .map((g) => ({
         month: monthsUntil(g.targetDate),
         amount: goalShares(g, data)[who],
@@ -96,41 +101,61 @@ const Model = (() => {
       }));
   }
 
+  // 「貯める目標」から決まる、人ごとのカテゴリ残高の上限: { self: {reserve: 円}, partner: {...} }
+  // 資金源が1つ(現金(通常)以外)の貯める目標のみ。負担額があればそれを、なければ2人で均等に分ける
+  // (パートナー管理OFFなら全額が自分の分)。同じカテゴリに複数あれば大きい方を使う
+  function savingCaps(data) {
+    const caps = { self: {}, partner: {} };
+    const two = data.settings.partnerEnabled;
+    data.goals.forEach((g) => {
+      const sources = goalSources(g);
+      if (!isSaveGoal(g) || sources.length !== 1 || sources[0] === "cash") return;
+      const key = sources[0];
+      const shares = goalShares(g, data);
+      const self = shares ? shares.self : two ? g.targetAmount / 2 : g.targetAmount;
+      const partner = shares ? shares.partner : two ? g.targetAmount / 2 : 0;
+      caps.self[key] = Math.max(caps.self[key] || 0, self);
+      if (two) caps.partner[key] = Math.max(caps.partner[key] || 0, partner);
+    });
+    return caps;
+  }
+
   // カテゴリごとの月次残高: { nisa: [値0..totalMonths], dc: [...], ... }
   // カテゴリを資金源に指定した目標は、目標日にその金額を指定カテゴリの合算プールから
   // 残高比で按分して差し引く(who==="combined"のときのみ)
   // 個人(self/partner)の月次残高では、withShares=trueのとき、負担額を設定した他の目標の
   // 個人負担分をその人の資産から差し引く(目標ごとの個人別の達成判定用)
+  // 「貯める目標」のカテゴリは、人ごとの上限に達したあとの積立が現金(通常)に積み上がる
   function categoryBalancesSeries(data, totalMonths, who = "combined", excludeGoalId, withShares = false) {
     const principals = categoryPrincipals(data, who);
     const monthly = categoryMonthly(data, who);
     const bonus = categoryBonus(data, who);
-    const tg = reserveTargets(data);
-    // 世帯合計で、どちらかが生活防衛費の目標を設定している場合は、上限が人ごとに違うため
-    // 生活防衛費だけ2人分に分けて計算し、結果を合算する
-    const split = who === "combined" && data.settings.partnerEnabled && (tg.self > 0 || tg.partner > 0);
-    const PARTNER_RESERVE = "reserve@p";
+    const caps = savingCaps(data);
+    const capKeys = Object.keys({ ...caps.self, ...caps.partner });
+    // 世帯合計で上限のあるカテゴリは、上限が人ごとに違うため2人分に分けて計算し、結果を合算する
+    const split = who === "combined" && data.settings.partnerEnabled && capKeys.length > 0;
+    const PARTNER_SUFFIX = "@p";
 
     const makeCategory = (key, principal, monthlyV, bonusV, cap) => ({
       key, principal, monthly: monthlyV, bonus: bonusV,
       ratePercent: data.settings.categoryRates[key.split("@")[0]] || 0,
-      // 目標額に達したあとの積立は現金(通常)へ。すでに目標額を超えている残高は動かさない
+      // 上限に達したあとの積立は現金(通常)へ。すでに上限を超えている残高は動かさない
       cap: cap > 0 ? Math.max(cap, principal) : 0,
       overflowTo: cap > 0 ? "cash" : undefined
     });
 
     const categories = [];
     Categories.LIST.forEach((c) => {
-      if (c.key === "reserve" && split) {
+      if (split && capKeys.includes(c.key)) {
         const sp = categoryPrincipals(data, "self"), pp = categoryPrincipals(data, "partner");
         const sm = categoryMonthly(data, "self"), pm = categoryMonthly(data, "partner");
         const sb = categoryBonus(data, "self"), pb = categoryBonus(data, "partner");
-        categories.push(makeCategory("reserve", sp.reserve, sm.reserve, sb.reserve, tg.self));
-        categories.push(makeCategory(PARTNER_RESERVE, pp.reserve, pm.reserve, pb.reserve, tg.partner));
+        categories.push(makeCategory(c.key, sp[c.key], sm[c.key], sb[c.key], caps.self[c.key] || 0));
+        categories.push(makeCategory(c.key + PARTNER_SUFFIX, pp[c.key], pm[c.key], pb[c.key], caps.partner[c.key] || 0));
         return;
       }
-      const target = c.key !== "reserve" ? 0 : who === "partner" ? tg.partner : tg.self;
-      categories.push(makeCategory(c.key, principals[c.key], monthly[c.key], bonus[c.key], target));
+      const cap = who === "partner" ? caps.partner[c.key] : caps.self[c.key];
+      categories.push(makeCategory(c.key, principals[c.key], monthly[c.key], bonus[c.key], cap || 0));
     });
 
     let withdrawals = [];
@@ -139,25 +164,19 @@ const Model = (() => {
       if (split) {
         withdrawals = withdrawals.map((w) => ({
           ...w,
-          sources: w.sources.flatMap((k) => (k === "reserve" ? ["reserve", PARTNER_RESERVE] : [k]))
+          sources: w.sources.flatMap((k) => (capKeys.includes(k) ? [k, k + PARTNER_SUFFIX] : [k]))
         }));
       }
     } else if (withShares) withdrawals = personWithdrawals(data, who, excludeGoalId);
 
     const values = Sim.simulateJoint(categories, totalMonths, withdrawals);
     if (split) {
-      values.reserve = values.reserve.map((v, i) => v + values[PARTNER_RESERVE][i]);
-      delete values[PARTNER_RESERVE];
+      capKeys.forEach((k) => {
+        values[k] = values[k].map((v, i) => v + values[k + PARTNER_SUFFIX][i]);
+        delete values[k + PARTNER_SUFFIX];
+      });
     }
     return values;
-  }
-
-  // 生活防衛費の目標金額(円)。0は上限なし。パートナー管理OFFのときはパートナー分は使わない
-  function reserveTargets(data) {
-    return {
-      self: data.people.self.reserveTarget || 0,
-      partner: data.settings.partnerEnabled ? data.people.partner.reserveTarget || 0 : 0
-    };
   }
 
   // 世帯合計の月次残高: カテゴリ合計から、資金源「全体」の目標をその目標日以降ずっと差し引く
@@ -235,7 +254,7 @@ const Model = (() => {
       ? futureValueAt(data, yearsFromNow, goal.id)
       : sourcesFutureValueAt(data, goalSources(goal), yearsFromNow, goal.id);
     const diff = projected - goal.targetAmount;
-    return { yearsFromNow, monthsFromNow: totalMonths, projected, diff, onTrack: diff >= 0 };
+    return { yearsFromNow, monthsFromNow: totalMonths, projected, diff, onTrack: diff >= -1 };
   }
 
   // 個人ごとの達成見込み。負担額が未設定ならnull。
@@ -250,7 +269,7 @@ const Model = (() => {
       const balances = categoryBalancesSeries(data, totalMonths, who, goal.id, true);
       const projected = keys.reduce((sum, k) => sum + balances[k][totalMonths], 0);
       const share = shares[who];
-      result[who] = { share, projected, diff: projected - share, onTrack: projected - share >= 0 };
+      result[who] = { share, projected, diff: projected - share, onTrack: projected - share >= -1 };
     });
     result.sharesTotal = shares.self + shares.partner;
     return result;
@@ -269,6 +288,7 @@ const Model = (() => {
     sourcesFutureValueAt,
     goalSources,
     isTotalGoal,
+    isSaveGoal,
     projectionSeries,
     categorySeriesByKey,
     monthsUntil,

@@ -40,8 +40,8 @@ const Storage = (() => {
         partnerEnabled: false
       },
       people: {
-        self: { name: "自分", contributions: Categories.emptyContributions(), reserveTarget: 0 }, // reserveTarget: 生活防衛費の目標額(円)
-        partner: { name: "パートナー", contributions: Categories.emptyContributions(), reserveTarget: 0 }
+        self: { name: "自分", contributions: Categories.emptyContributions() },
+        partner: { name: "パートナー", contributions: Categories.emptyContributions() }
       },
       // history entry: { id, date: 'YYYY-MM-DD', self: {nisa,dc,cash,reserve,stock}(円), partner: {同上} }
       history: [],
@@ -75,6 +75,7 @@ const Storage = (() => {
       targetDate,
       note: goal.note || "",
       fundingSources: sources,
+      kind: goal.kind === "save" && sources.length ? "save" : "spend",
       shares
     };
   }
@@ -132,7 +133,6 @@ const Storage = (() => {
             base.people.self.contributions,
             parsedPeople.self && parsedPeople.self.contributions
           ),
-          reserveTarget: Math.max(0, Number(parsedPeople.self && parsedPeople.self.reserveTarget) || 0)
         },
         partner: {
           name: (parsedPeople.partner && parsedPeople.partner.name) || base.people.partner.name,
@@ -140,7 +140,6 @@ const Storage = (() => {
             base.people.partner.contributions,
             parsedPeople.partner && parsedPeople.partner.contributions
           ),
-          reserveTarget: Math.max(0, Number(parsedPeople.partner && parsedPeople.partner.reserveTarget) || 0)
         }
       };
       // シミュレーション期間の上限は30年

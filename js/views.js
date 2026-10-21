@@ -274,7 +274,7 @@ const Views = (() => {
         return `
           <div class="list-item">
             <div class="li-main">
-              <div class="li-title">${escapeHtml(g.name)}</div>
+              <div class="li-title">${escapeHtml(g.name)}${Model.isSaveGoal(g) ? ` <span class="badge good">貯める目標</span>` : ""}</div>
               <div class="li-sub">${Fmt.yearMonthJp(g.targetDate)}・目標 ${Fmt.man(g.targetAmount)}・資金源: ${fundingSourceLabel(g)}${g.note ? " ・ " + escapeHtml(g.note) : ""}</div>
               <div class="li-sub">世帯の予測: ${Fmt.man(st.projected)} ${badge}</div>
               ${goalPersonLines(g, data)}
@@ -320,7 +320,7 @@ const Views = (() => {
 
   function goalFormModal(goal, data) {
     const isEdit = !!goal;
-    const g = goal || { name: "", targetAmount: 0, targetDate: defaultTargetDate(), note: "", fundingSources: [] };
+    const g = goal || { name: "", targetAmount: 0, targetDate: defaultTargetDate(), note: "", fundingSources: [], kind: "spend" };
     const selected = Model.goalSources(g);
     const fundingOptions = Categories.LIST.map(
       (c) => `
@@ -366,6 +366,13 @@ const Views = (() => {
               <div class="hint">どの資産で用意するか。複数選ぶと、選んだ資産の合計から残高比で支出します。未選択の場合は全体(すべての資産合計)から支出します。</div>
             </div>
             ${sharesField}
+            <div class="field">
+              <label class="toggle-row">
+                <input type="checkbox" name="kind" value="save" ${g.kind === "save" ? "checked" : ""}>
+                <span>使わずに貯める目標(生活防衛費など)</span>
+              </label>
+              <div class="hint">オンにすると、目標額を使わずに貯める目標になります。資金源を1つ(現金(通常)以外)選ぶと、その資産が目標額に達したあとの積立は現金(通常)に積み上がり、グラフは横ばいになります。負担額が空欄なら2人で均等に分けます。</div>
+            </div>
             <div class="field">
               <label>メモ(任意)</label>
               <input type="text" name="note" value="${escapeAttr(g.note || "")}" placeholder="例: 車の買い替え">
@@ -511,16 +518,6 @@ const Views = (() => {
     ).join("");
   }
 
-  // 生活防衛費の目標金額。達成後の積立は現金(通常)に積み上がる
-  function reserveTargetField(prefix, person) {
-    return `
-        <div class="field">
-          <label>生活防衛費の目標金額(万円)</label>
-          <input type="text" inputmode="decimal" class="comma-input" name="${prefix}_reserveTarget" value="${person.reserveTarget ? Fmt.manInputValue(person.reserveTarget) : ""}" placeholder="未設定(上限なし)">
-          <div class="hint">生活防衛費がこの金額に達したら、それ以降の積立は現金(通常)に積み上がります。空欄なら上限なしで生活防衛費に積み立てます。</div>
-        </div>`;
-  }
-
   function renderSettings(data) {
     const s = data.settings;
     const rateRows = Categories.LIST.map(
@@ -555,7 +552,6 @@ const Views = (() => {
                 <input type="text" name="self_name" value="${escapeAttr(data.people.self.name)}" maxlength="10">
               </div>
               ${contributionRows("self", data.people.self.contributions)}
-              ${reserveTargetField("self", data.people.self)}
             </div>
           </details>
         </div>
@@ -572,7 +568,6 @@ const Views = (() => {
               <input type="text" name="partner_name" value="${escapeAttr(data.people.partner.name)}" maxlength="10">
             </div>
             ${contributionRows("partner", data.people.partner.contributions)}
-            ${reserveTargetField("partner", data.people.partner)}
           </div>
         </div>
 
