@@ -398,12 +398,15 @@
       });
 
       data.settings.categoryRates = categoryRates;
-      data.settings.simulationYears = Math.round(parseFloat(fd.get("simulationYears")) || 30);
+      data.settings.simulationYears = Math.min(30, Math.max(1, Math.round(parseFloat(fd.get("simulationYears")) || 30)));
       data.settings.partnerEnabled = fd.get("partnerEnabled") === "on";
       data.people.self.name = String(fd.get("self_name") || "").trim() || "自分";
       data.people.self.contributions = readContributions("self");
       data.people.partner.name = String(fd.get("partner_name") || "").trim() || "パートナー";
       data.people.partner.contributions = readContributions("partner");
+      const readTarget = (prefix) => Math.max(0, Math.round(Fmt.parseCommaNum(fd.get(`${prefix}_reserveTarget`)) * 10000));
+      data.people.self.reserveTarget = readTarget("self");
+      data.people.partner.reserveTarget = readTarget("partner");
 
       persistAndToast("設定を保存しました");
     }

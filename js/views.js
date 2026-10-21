@@ -36,7 +36,7 @@ const Views = (() => {
     const chartMode = data.settings.partnerEnabled ? (categoryChartMode || "combined") : "combined";
     const hidden = hiddenCategories || new Set();
     // 期間の選択肢: プリセット+設定画面で入力した中途半端な値(例: 15年)も残す
-    const periodOptions = [...new Set([3, 5, 10, 20, 30, 40, 50, data.settings.simulationYears])].sort((a, b) => a - b);
+    const periodOptions = [...new Set([3, 5, 10, 20, 30, data.settings.simulationYears])].sort((a, b) => a - b);
     const currentAssets = Model.currentAssets(data);
     const hasHistory = data.history.length > 0;
     const maxYears = Math.max(1, data.settings.simulationYears);
@@ -390,7 +390,7 @@ const Views = (() => {
       </div>`;
     const mfImportBtn = `
       <button class="btn btn-secondary btn-block" data-action="import-mf-csv" style="margin-top:10px;">マネーフォワードCSVを取り込む</button>
-      <div class="hint" style="text-align:center;margin-top:6px;">現金(通常)・持株会(株式)・NISA(投資信託)・DC(年金)を取り込みます。生活防衛資金は取り込み後に手入力で分けてください。</div>
+      <div class="hint" style="text-align:center;margin-top:6px;">現金(通常)・持株会(株式)・NISA(投資信託)・DC(年金)を取り込みます。生活防衛費は取り込み後に手入力で分けてください。</div>
       <input type="file" id="import-mf-file-input" accept=".csv,text/csv" class="hidden">
     `;
     if (!data.history.length) {
@@ -511,6 +511,16 @@ const Views = (() => {
     ).join("");
   }
 
+  // 生活防衛費の目標金額。達成後の積立は現金(通常)に積み上がる
+  function reserveTargetField(prefix, person) {
+    return `
+        <div class="field">
+          <label>生活防衛費の目標金額(万円)</label>
+          <input type="text" inputmode="decimal" class="comma-input" name="${prefix}_reserveTarget" value="${person.reserveTarget ? Fmt.manInputValue(person.reserveTarget) : ""}" placeholder="未設定(上限なし)">
+          <div class="hint">生活防衛費がこの金額に達したら、それ以降の積立は現金(通常)に積み上がります。空欄なら上限なしで生活防衛費に積み立てます。</div>
+        </div>`;
+  }
+
   function renderSettings(data) {
     const s = data.settings;
     const rateRows = Categories.LIST.map(
@@ -545,6 +555,7 @@ const Views = (() => {
                 <input type="text" name="self_name" value="${escapeAttr(data.people.self.name)}" maxlength="10">
               </div>
               ${contributionRows("self", data.people.self.contributions)}
+              ${reserveTargetField("self", data.people.self)}
             </div>
           </details>
         </div>
@@ -561,6 +572,7 @@ const Views = (() => {
               <input type="text" name="partner_name" value="${escapeAttr(data.people.partner.name)}" maxlength="10">
             </div>
             ${contributionRows("partner", data.people.partner.contributions)}
+            ${reserveTargetField("partner", data.people.partner)}
           </div>
         </div>
 
@@ -568,7 +580,7 @@ const Views = (() => {
           <h2>シミュレーション期間</h2>
           <div class="field">
             <label>期間(年)</label>
-            <input type="number" name="simulationYears" inputmode="numeric" value="${s.simulationYears}" min="1" max="60" required>
+            <input type="number" name="simulationYears" inputmode="numeric" value="${s.simulationYears}" min="1" max="30" required>
           </div>
         </div>
 

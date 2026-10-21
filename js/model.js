@@ -105,17 +105,59 @@ const Model = (() => {
     const principals = categoryPrincipals(data, who);
     const monthly = categoryMonthly(data, who);
     const bonus = categoryBonus(data, who);
-    const categories = Categories.LIST.map((c) => ({
-      key: c.key,
-      principal: principals[c.key],
-      monthly: monthly[c.key],
-      bonus: bonus[c.key],
-      ratePercent: data.settings.categoryRates[c.key] || 0
-    }));
+    const tg = reserveTargets(data);
+    // 世帯合計で、どちらかが生活防衛費の目標を設定している場合は、上限が人ごとに違うため
+    // 生活防衛費だけ2人分に分けて計算し、結果を合算する
+    const split = who === "combined" && data.settings.partnerEnabled && (tg.self > 0 || tg.partner > 0);
+    const PARTNER_RESERVE = "reserve@p";
+
+    const makeCategory = (key, principal, monthlyV, bonusV, cap) => ({
+      key, principal, monthly: monthlyV, bonus: bonusV,
+      ratePercent: data.settings.categoryRates[key.split("@")[0]] || 0,
+      // 目標額に達したあとの積立は現金(通常)へ。すでに目標額を超えている残高は動かさない
+      cap: cap > 0 ? Math.max(cap, principal) : 0,
+      overflowTo: cap > 0 ? "cash" : undefined
+    });
+
+    const categories = [];
+    Categories.LIST.forEach((c) => {
+      if (c.key === "reserve" && split) {
+        const sp = categoryPrincipals(data, "self"), pp = categoryPrincipals(data, "partner");
+        const sm = categoryMonthly(data, "self"), pm = categoryMonthly(data, "partner");
+        const sb = categoryBonus(data, "self"), pb = categoryBonus(data, "partner");
+        categories.push(makeCategory("reserve", sp.reserve, sm.reserve, sb.reserve, tg.self));
+        categories.push(makeCategory(PARTNER_RESERVE, pp.reserve, pm.reserve, pb.reserve, tg.partner));
+        return;
+      }
+      const target = c.key !== "reserve" ? 0 : who === "partner" ? tg.partner : tg.self;
+      categories.push(makeCategory(c.key, principals[c.key], monthly[c.key], bonus[c.key], target));
+    });
+
     let withdrawals = [];
-    if (who === "combined") withdrawals = goalsAsWithdrawals(data, excludeGoalId);
-    else if (withShares) withdrawals = personWithdrawals(data, who, excludeGoalId);
-    return Sim.simulateJoint(categories, totalMonths, withdrawals);
+    if (who === "combined") {
+      withdrawals = goalsAsWithdrawals(data, excludeGoalId);
+      if (split) {
+        withdrawals = withdrawals.map((w) => ({
+          ...w,
+          sources: w.sources.flatMap((k) => (k === "reserve" ? ["reserve", PARTNER_RESERVE] : [k]))
+        }));
+      }
+    } else if (withShares) withdrawals = personWithdrawals(data, who, excludeGoalId);
+
+    const values = Sim.simulateJoint(categories, totalMonths, withdrawals);
+    if (split) {
+      values.reserve = values.reserve.map((v, i) => v + values[PARTNER_RESERVE][i]);
+      delete values[PARTNER_RESERVE];
+    }
+    return values;
+  }
+
+  // 生活防衛費の目標金額(円)。0は上限なし。パートナー管理OFFのときはパートナー分は使わない
+  function reserveTargets(data) {
+    return {
+      self: data.people.self.reserveTarget || 0,
+      partner: data.settings.partnerEnabled ? data.people.partner.reserveTarget || 0 : 0
+    };
   }
 
   // 世帯合計の月次残高: カテゴリ合計から、資金源「全体」の目標をその目標日以降ずっと差し引く

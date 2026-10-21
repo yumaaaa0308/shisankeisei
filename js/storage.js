@@ -5,7 +5,7 @@ const Categories = (() => {
     { key: "dc", label: "DC", color: "#a78bfa" },
     // key "cash" は従来の「現金」データをそのまま引き継ぐため残し、表示名だけ「現金(通常)」にしている
     { key: "cash", label: "現金(通常)", color: "#34d399" },
-    { key: "reserve", label: "現金(生活防衛資金)", color: "#f472b6" },
+    { key: "reserve", label: "現金(生活防衛費)", color: "#f472b6" },
     { key: "stock", label: "持株会", color: "#fbbf24" }
   ];
   function emptyBreakdown() {
@@ -40,8 +40,8 @@ const Storage = (() => {
         partnerEnabled: false
       },
       people: {
-        self: { name: "自分", contributions: Categories.emptyContributions() },
-        partner: { name: "パートナー", contributions: Categories.emptyContributions() }
+        self: { name: "自分", contributions: Categories.emptyContributions(), reserveTarget: 0 }, // reserveTarget: 生活防衛費の目標額(円)
+        partner: { name: "パートナー", contributions: Categories.emptyContributions(), reserveTarget: 0 }
       },
       // history entry: { id, date: 'YYYY-MM-DD', self: {nisa,dc,cash,reserve,stock}(円), partner: {同上} }
       history: [],
@@ -131,16 +131,20 @@ const Storage = (() => {
           contributions: mergeContributions(
             base.people.self.contributions,
             parsedPeople.self && parsedPeople.self.contributions
-          )
+          ),
+          reserveTarget: Math.max(0, Number(parsedPeople.self && parsedPeople.self.reserveTarget) || 0)
         },
         partner: {
           name: (parsedPeople.partner && parsedPeople.partner.name) || base.people.partner.name,
           contributions: mergeContributions(
             base.people.partner.contributions,
             parsedPeople.partner && parsedPeople.partner.contributions
-          )
+          ),
+          reserveTarget: Math.max(0, Number(parsedPeople.partner && parsedPeople.partner.reserveTarget) || 0)
         }
       };
+      // シミュレーション期間の上限は30年
+      settings.simulationYears = Math.min(30, Math.max(1, Math.round(Number(settings.simulationYears) || 30)));
       return {
         settings,
         people,

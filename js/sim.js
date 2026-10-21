@@ -4,6 +4,7 @@ const Sim = (() => {
 
   // 複数カテゴリを月次で同時にシミュレーションする。ボーナスは毎年6月に加算される。
   // categories: [{ key, principal, monthly, bonus, ratePercent }]
+  //   cap/overflowTo(任意): 残高がcapを超えた分を、毎月overflowToのカテゴリへ移す
   // withdrawals: [{ month(経過月数), amount(円), sources: [categoryKey,...] }]
   //   その月の終わりに、sourcesの合算プールから残高比で按分して差し引く(目標の支出)。
   //   プラス残高のカテゴリがなければ均等に按分する。
@@ -32,6 +33,17 @@ const Sim = (() => {
         let b = balances[c.key] * (1 + r) + c.monthly;
         if ((base + m) % 12 === BONUS_MONTH_INDEX0) b += c.bonus;
         balances[c.key] = b;
+      });
+
+      // 上限(cap)に達したカテゴリの超過分は、overflowToのカテゴリに積み上がる
+      // (例: 生活防衛費が目標額に達したら、それ以降の積立は現金(通常)へ)
+      categories.forEach((c) => {
+        if (!c.cap || !c.overflowTo) return;
+        const excess = balances[c.key] - c.cap;
+        if (excess > 0) {
+          balances[c.key] -= excess;
+          balances[c.overflowTo] += excess;
+        }
       });
 
       (byMonth.get(m) || []).forEach((w) => {
