@@ -35,7 +35,7 @@ const MiniChart = (() => {
   function setupCanvas(canvas) {
     const dpr = window.devicePixelRatio || 1;
     const cssWidth = canvas.clientWidth || canvas.parentElement.clientWidth || 320;
-    const height = 220;
+    const height = cssWidth >= 480 ? 300 : 220; // PC・タブレットなど幅があるときは縦も大きくする
     canvas.width = cssWidth * dpr;
     canvas.height = height * dpr;
     canvas.style.height = height + "px";
@@ -307,8 +307,12 @@ const MiniChart = (() => {
       handleMove(evt);
     });
     canvas.addEventListener("pointermove", (evt) => {
-      if (!dragging) return;
+      // タッチはドラッグ中だけ、マウスはカーソルを合わせるだけで値を表示する
+      if (!dragging && evt.pointerType !== "mouse") return;
       handleMove(evt);
+    });
+    canvas.addEventListener("pointerleave", (evt) => {
+      if (!dragging && evt.pointerType === "mouse") repaint(null);
     });
     canvas.addEventListener("pointerup", () => { dragging = false; });
     canvas.addEventListener("pointercancel", () => { dragging = false; });

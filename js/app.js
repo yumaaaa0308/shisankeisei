@@ -49,6 +49,7 @@
         root.innerHTML = Views.renderSettings(data);
         break;
     }
+    root.dataset.view = currentView; // PC表示のレイアウトを画面ごとに切り替えるため
     root.scrollTop = 0;
   }
 

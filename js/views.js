@@ -50,7 +50,7 @@ const Views = (() => {
     let setupNotice = "";
     if (!hasHistory) {
       setupNotice = `
-        <div class="card">
+        <div class="card span-all">
           <h2>はじめに</h2>
           <p style="margin:0 0 12px;color:var(--text-dim);font-size:14px;">
             まずは「資産推移」タブで現在の資産額を記録してください。シミュレーションの起点になります。
@@ -109,6 +109,7 @@ const Views = (() => {
         ${peopleSplitHtml}
       </div>
 
+      <div class="col-stack">
       <div class="card">
         <div class="chart-header" style="margin-bottom:0;">
           <h2>シミュレーション期間</h2>
@@ -128,6 +129,7 @@ const Views = (() => {
           <div class="label">目標達成見込み</div>
           <div class="value">${onTrackCount} / ${data.goals.length}</div>
         </div>
+      </div>
       </div>
 
       <div class="card">
